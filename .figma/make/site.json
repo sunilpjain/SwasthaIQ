@@ -1,0 +1,10 @@
+{
+  "description": "Engage users with an interactive product showcase that tilts in 3D space based on cursor movement, enhancing visual appeal and user experience.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
