@@ -7,6 +7,8 @@ const app = new App({
 });
 // cdk.json context is not loaded in tests; supply what buildApp reads.
 app.node.setContext('swasthyaiq:githubRepo', 'sunilpjain/SwasthaIQ');
+app.node.setContext('swasthyaiq:githubOwnerId', '285567246');
+app.node.setContext('swasthyaiq:githubRepoId', '1332992939');
 app.node.setContext('swasthyaiq:monthlyBudgetUsd', 70);
 app.node.setContext('swasthyaiq:dns', { zoneName: 'swasthyaiq.in', hostedZoneId: 'Z0123456789ABC' });
 app.node.setContext('swasthyaiq:dev', { apiDomain: 'dev-api.swasthyaiq.in', webDomain: 'dev.swasthyaiq.in' });
@@ -241,6 +243,9 @@ describe('DIG-35 CI/CD access and DIG-19 budget', () => {
     const trust = JSON.stringify(Object.values(roles).map((r) => r.Properties.AssumeRolePolicyDocument));
     expect(trust).toContain('repo:sunilpjain/SwasthaIQ:ref:refs/heads/main');
     expect(trust).toContain('repo:sunilpjain/SwasthaIQ:ref:refs/tags/v*');
+    // GitHub's immutable-id subject format (what this repo actually sends)
+    expect(trust).toContain('repo:sunilpjain@285567246/SwasthaIQ@1332992939:ref:refs/heads/main');
+    expect(trust).toContain('repo:sunilpjain@285567246/SwasthaIQ@1332992939:ref:refs/tags/v*');
     expect(trust).toContain('sts.amazonaws.com');
   });
   it('ECR keeps recent images for rollback and is immutable', () => {
