@@ -1,19 +1,21 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/app.ts",
+  "app": "npx tsx bin/app.ts",
   "context": {
-    "swasthyaiq:account": "",
+    "swasthyaiq:account": "128585880223",
     "swasthyaiq:githubRepo": "sunilpjain/SwasthaIQ",
-    "swasthyaiq:alertEmail": "",
+    "swasthyaiq:alertEmail": "sunilpjain68@gmail.com",
     "swasthyaiq:monthlyBudgetUsd": 70,
+    "swasthyaiq:dns": {
+      "zoneName": "swasthyaiq.in",
+      "hostedZoneId": "Z08196803895SJOS2G5HO"
+    },
     "swasthyaiq:dev": {
-      "apiDomain": "dev-api.swasthyaiq.cognihealth.in",
-      "webDomain": "dev.swasthyaiq.cognihealth.in",
-      "webCertificateArn": ""
+      "apiDomain": "dev-api.swasthyaiq.in",
+      "webDomain": "dev.swasthyaiq.in"
     },
     "swasthyaiq:demo": {
-      "apiDomain": "api.swasthyaiq.cognihealth.in",
-      "webDomain": "swasthyaiq.cognihealth.in",
-      "webCertificateArn": ""
+      "apiDomain": "api.swasthyaiq.in",
+      "webDomain": "swasthyaiq.in"
     },
     "@aws-cdk/aws-iam:minimizePolicies": true,
     "@aws-cdk/core:defaultCrossStackReferences": "strong",

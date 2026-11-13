@@ -28,10 +28,18 @@ pnpm deploy:dev              # all dev stacks
 pnpm deploy:demo             # all demo stacks (after G3; demo is the doctors' environment)
 ```
 
+DNS (DIG-20) is automatic. The `swasthyaiq.in` hosted zone is in Route 53, so with `swasthyaiq:dns.hostedZoneId` set in `cdk.json`, the stacks create:
+
+- the API A record pointing to the server's Elastic IP. Caddy then gets its Let's Encrypt certificate on first start.
+- a DNS-validated ACM certificate in **us-east-1**, in the `SwasthyaIQ-<env>-Cert` stack, plus A/AAAA alias records for the admin site on CloudFront.
+
+| Env  | API                             | Admin                             |
+| ---- | ------------------------------- | --------------------------------- |
+| dev  | `https://dev-api.swasthyaiq.in` | `https://dev.swasthyaiq.in/admin` |
+| demo | `https://api.swasthyaiq.in`     | `https://swasthyaiq.in/admin`     |
+
 Outputs you will need:
 
-- `Server.ElasticIp` → create the **A record** for the API domain (`dev-api.swasthyaiq.cognihealth.in` / `api.swasthyaiq.cognihealth.in`). Caddy gets its certificate automatically once DNS resolves.
-- `Web.DistributionDomain` → **CNAME** for the web domain. To serve the custom domain, request an ACM certificate **in us-east-1** for it, validate by DNS, put its ARN in `cdk.json` → `webCertificateArn`, and redeploy the Web stack.
 - `Auth.UserPoolId`, `Auth.AndroidClientId`, `Auth.AdminWebClientId` → app and admin-web config.
 - Set the GitHub repository variable **`AWS_ACCOUNT_ID`** so `.github/workflows/deploy.yml` can assume the deploy roles.
 

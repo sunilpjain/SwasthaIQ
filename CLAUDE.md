@@ -29,7 +29,7 @@ pnpm synth                    # cdk synth for all stacks
 
 ## Architecture in one screen
 
-- **Android app** → HTTPS `api.swasthyaiq.cognihealth.in` (demo) / `dev-api.…` (dev) → **Caddy** on one **EC2 t4g.small** (Elastic IP, no load balancer) → **NestJS in Docker** → **RDS PostgreSQL** (db.t4g.micro, isolated subnet, no NAT).
+- **Android app** → HTTPS `api.swasthyaiq.in` (demo) / `dev-api.…` (dev) → **Caddy** on one **EC2 t4g.small** (Elastic IP, no load balancer) → **NestJS in Docker** → **RDS PostgreSQL** (db.t4g.micro, isolated subnet, no NAT).
 - **Login:** Cognito user pool, 3 fixed users (`saiyam`, `samradnyee` = doctor; `admin` = admin), no self sign-up, case-insensitive user IDs. Refresh token 7 days with rotation, so the session slides while in use. The API checks every access token (signature, issuer, client, `token_use=access`), the Cognito group against the DB role, `users.enabled`, and `session_revocations` (remote sign-out). Status is cached for at most 30 s.
 - **Background jobs:** SQS (+ DLQ, 3 retries) and a worker on the same server. **Files:** private S3, 5-minute presigned links. **AI:** Sarvam (speech), Transcribe (comparison), Textract (OCR), Bedrock (structuring).
 - **Secrets:** Secrets Manager only (DB credentials, Sarvam key). Read at start-up by `api/src/config/config.ts`.

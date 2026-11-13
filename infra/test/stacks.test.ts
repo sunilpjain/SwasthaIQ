@@ -8,16 +8,9 @@ const app = new App({
 // cdk.json context is not loaded in tests; supply what buildApp reads.
 app.node.setContext('swasthyaiq:githubRepo', 'sunilpjain/SwasthaIQ');
 app.node.setContext('swasthyaiq:monthlyBudgetUsd', 70);
-app.node.setContext('swasthyaiq:dev', {
-  apiDomain: 'dev-api.swasthyaiq.cognihealth.in',
-  webDomain: 'dev.swasthyaiq.cognihealth.in',
-  webCertificateArn: '',
-});
-app.node.setContext('swasthyaiq:demo', {
-  apiDomain: 'api.swasthyaiq.cognihealth.in',
-  webDomain: 'swasthyaiq.cognihealth.in',
-  webCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc',
-});
+app.node.setContext('swasthyaiq:dns', { zoneName: 'swasthyaiq.in', hostedZoneId: 'Z0123456789ABC' });
+app.node.setContext('swasthyaiq:dev', { apiDomain: 'dev-api.swasthyaiq.in', webDomain: 'dev.swasthyaiq.in' });
+app.node.setContext('swasthyaiq:demo', { apiDomain: 'api.swasthyaiq.in', webDomain: 'swasthyaiq.in' });
 const { account, envs } = buildApp(app);
 const t = {
   account: Template.fromStack(account),
@@ -29,6 +22,8 @@ const t = {
   web: Template.fromStack(envs.dev.web),
   demoWeb: Template.fromStack(envs.demo.web),
   deploy: Template.fromStack(envs.dev.deploy),
+  cert: Template.fromStack(envs.dev.cert!),
+  demoServer: Template.fromStack(envs.demo.server),
 };
 
 describe('DIG-1 network', () => {
@@ -135,6 +130,8 @@ describe('DIG-32 Cognito', () => {
       EnableTokenRevocation: true,
       GenerateSecret: false,
       RefreshTokenRotation: { Feature: 'ENABLED', RetryGracePeriodSeconds: 10 },
+      // Cognito rejects ALLOW_REFRESH_TOKEN_AUTH when rotation is on.
+      ExplicitAuthFlows: ['ALLOW_USER_PASSWORD_AUTH', 'ALLOW_USER_SRP_AUTH'],
     });
   });
   it('never contains a password', () => {
@@ -146,6 +143,8 @@ describe('DIG-33 server', () => {
   it('t4g.small, Amazon Linux 2023 arm64, IMDSv2, encrypted disk, no key pair', () => {
     t.server.hasResourceProperties('AWS::EC2::Instance', {
       InstanceType: 't4g.small',
+      // must reference the renamed template, or EC2 rejects the instance
+      LaunchTemplate: Match.objectLike({ LaunchTemplateName: 'swasthyaiq-dev-api' }),
       KeyName: Match.absent(),
       BlockDeviceMappings: [Match.objectLike({ Ebs: Match.objectLike({ Encrypted: true }) })],
     });
@@ -169,7 +168,7 @@ describe('DIG-33 server', () => {
   });
   it('user data sets up Caddy for the API domain and the deploy script', () => {
     const json = JSON.stringify(t.server.toJSON());
-    expect(json).toContain('dev-api.swasthyaiq.cognihealth.in');
+    expect(json).toContain('dev-api.swasthyaiq.in');
     expect(json).toContain('/opt/swasthyaiq/deploy.sh');
     expect(json).toContain('reverse_proxy api:3000');
   });
@@ -209,10 +208,30 @@ describe('DIG-34 least-privilege IAM, secrets and admin hosting', () => {
     });
     t.web.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1);
   });
-  it('demo uses the custom domain when a certificate is configured', () => {
+  it('demo serves the apex swasthyaiq.in with an alias record', () => {
     t.demoWeb.hasResourceProperties('AWS::CloudFront::Distribution', {
-      DistributionConfig: Match.objectLike({ Aliases: ['swasthyaiq.cognihealth.in'] }),
+      DistributionConfig: Match.objectLike({ Aliases: ['swasthyaiq.in'] }),
     });
+    t.demoWeb.hasResourceProperties('AWS::Route53::RecordSet', { Name: 'swasthyaiq.in.', Type: 'A' });
+  });
+});
+
+describe('DIG-20 DNS on swasthyaiq.in', () => {
+  it('certificate for CloudFront is in us-east-1 and DNS-validated', () => {
+    expect(envs.dev.cert!.region).toBe('us-east-1');
+    t.cert.hasResourceProperties('AWS::CertificateManager::Certificate', {
+      DomainName: 'dev.swasthyaiq.in',
+      ValidationMethod: 'DNS',
+    });
+  });
+  it('dev web and API records exist', () => {
+    t.web.hasResourceProperties('AWS::Route53::RecordSet', { Name: 'dev.swasthyaiq.in.', Type: 'AAAA' });
+    t.server.hasResourceProperties('AWS::Route53::RecordSet', {
+      Name: 'dev-api.swasthyaiq.in.',
+      Type: 'A',
+      HostedZoneId: 'Z0123456789ABC',
+    });
+    t.demoServer.hasResourceProperties('AWS::Route53::RecordSet', { Name: 'api.swasthyaiq.in.' });
   });
 });
 

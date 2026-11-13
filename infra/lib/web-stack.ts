@@ -2,18 +2,23 @@ import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
-import type { EnvConfig } from './config';
+import type { DnsConfig, EnvConfig } from './config';
 
 export interface WebStackProps extends StackProps {
   config: EnvConfig;
+  /** Present when the swasthyaiq.in hosted zone is configured; then the custom domain is served. */
+  dns?: DnsConfig;
+  certificate?: acm.ICertificate;
 }
 
 /**
  * DIG-34 — admin web on S3 + CloudFront over HTTPS. The site lives under /admin.
- * The custom domain is attached once DNS (DIG-20) has a validated us-east-1 certificate;
- * until then the default *.cloudfront.net address works.
+ * With the swasthyaiq.in zone configured (DIG-20) it serves the custom domain with a
+ * us-east-1 certificate and an alias record; otherwise the default *.cloudfront.net address.
  */
 export class WebStack extends Stack {
   readonly bucket: s3.Bucket;
@@ -21,7 +26,8 @@ export class WebStack extends Stack {
 
   constructor(scope: Construct, id: string, props: WebStackProps) {
     super(scope, id, props);
-    const { webDomain, webCertificateArn, envName } = props.config;
+    const { webDomain, envName } = props.config;
+    const certificate = props.dns?.hostedZoneId ? props.certificate : undefined;
 
     this.bucket = new s3.Bucket(this, 'Site', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -43,10 +49,6 @@ function handler(event) {
   return r;
 }`),
     });
-
-    const certificate = webCertificateArn
-      ? acm.Certificate.fromCertificateArn(this, 'Cert', webCertificateArn)
-      : undefined;
 
     this.distribution = new cloudfront.Distribution(this, 'Cdn', {
       comment: `SwasthyaIQ admin web (${envName})`,
@@ -73,11 +75,22 @@ function handler(event) {
       ],
     });
 
+    if (certificate && props.dns) {
+      const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
+        hostedZoneId: props.dns.hostedZoneId,
+        zoneName: props.dns.zoneName,
+      });
+      const target = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution));
+      const recordName = webDomain === props.dns.zoneName ? undefined : webDomain;
+      new route53.ARecord(this, 'AliasA', { zone, recordName, target });
+      new route53.AaaaRecord(this, 'AliasAAAA', { zone, recordName, target });
+    }
+
     new CfnOutput(this, 'SiteBucket', { value: this.bucket.bucketName });
     new CfnOutput(this, 'DistributionId', { value: this.distribution.distributionId });
     new CfnOutput(this, 'DistributionDomain', {
       value: this.distribution.distributionDomainName,
-      description: `Point ${webDomain} (CNAME) here`,
+      description: certificate ? `Served as https://${webDomain}/admin` : 'Custom domain not configured',
     });
   }
 }

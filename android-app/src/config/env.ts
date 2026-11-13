@@ -8,12 +8,12 @@ export interface EnvSettings {
 
 const ENVIRONMENTS: Record<AppEnv, Omit<EnvSettings, 'appEnv'>> = {
   dev: {
-    apiBaseUrl: 'https://dev-api.swasthyaiq.cognihealth.in',
-    wsUrl: 'wss://dev-api.swasthyaiq.cognihealth.in/ws',
+    apiBaseUrl: 'https://dev-api.swasthyaiq.in',
+    wsUrl: 'wss://dev-api.swasthyaiq.in/ws',
   },
   demo: {
-    apiBaseUrl: 'https://api.swasthyaiq.cognihealth.in',
-    wsUrl: 'wss://api.swasthyaiq.cognihealth.in/ws',
+    apiBaseUrl: 'https://api.swasthyaiq.in',
+    wsUrl: 'wss://api.swasthyaiq.in/ws',
   },
 };
 
