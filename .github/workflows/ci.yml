@@ -1,0 +1,67 @@
+# DIG-18 / DIG-80 — runs on every pull request and on main. Branch protection on main
+# requires the "ci" job to pass before merge (see docs/github-setup.md).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: swasthyaiq
+          POSTGRES_PASSWORD: localdev
+          POSTGRES_DB: swasthyaiq_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U swasthyaiq" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      TEST_DATABASE_URL: postgres://swasthyaiq:localdev@localhost:5432/swasthyaiq_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build shared types
+        run: pnpm --filter @swasthyaiq/shared build
+      - name: Lint and format
+        run: pnpm lint && pnpm format:check
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Shared tests
+        run: pnpm --filter @swasthyaiq/shared test
+      - name: API tests against PostgreSQL, coverage gate (>= 70% lines)
+        run: pnpm --filter api test:ci
+      - name: OpenAPI spec is up to date
+        run: |
+          pnpm --filter api openapi
+          git diff --exit-code -- api/openapi.json || (echo "::error::Run 'pnpm --filter api openapi' and commit api/openapi.json" && exit 1)
+      - name: Android app tests
+        run: pnpm --filter android-app test:ci
+      - name: Infra tests and synth
+        env:
+          CDK_DEFAULT_ACCOUNT: '000000000000'
+        run: pnpm --filter infra test:ci && pnpm --filter infra synth
+      - name: Admin web build
+        run: pnpm --filter admin-web build
+      - name: Upload API coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: api/coverage/
+          retention-days: 14

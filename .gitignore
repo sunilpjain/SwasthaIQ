@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+cdk.out/
+.expo/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+android-app/android/
+android-app/ios/
+*.keystore
+*.jks
