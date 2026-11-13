@@ -1,0 +1,10 @@
+# Caddy terminates HTTPS with a free Let's Encrypt certificate and proxies to the API.
+# WebSocket upgrade (/ws) is passed through automatically by reverse_proxy.
+# Access logging is deliberately left off: query strings can carry access tokens (/ws?access_token=…).
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy api:3000 {
+		health_uri /health
+		health_interval 30s
+	}
+}

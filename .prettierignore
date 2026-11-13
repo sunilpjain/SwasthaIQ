@@ -1,0 +1,10 @@
+node_modules
+dist
+cdk.out
+coverage
+.expo
+pnpm-lock.yaml
+api/openapi.json
+legacy-demo
+admin-web/dist
+/tmp
