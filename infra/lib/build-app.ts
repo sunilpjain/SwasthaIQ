@@ -1,7 +1,8 @@
 import { Tags, type App, type Environment } from 'aws-cdk-lib';
 import { AccountStack } from './account-stack';
 import { AuthStack } from './auth-stack';
-import { PROJECT_TAG, REGION, type EnvConfig, type EnvName } from './config';
+import { CertStack } from './cert-stack';
+import { PROJECT_TAG, REGION, type DnsConfig, type EnvConfig, type EnvName } from './config';
 import { DataStack } from './data-stack';
 import { DeployAccessStack } from './deploy-access-stack';
 import { NetworkStack } from './network-stack';
@@ -13,6 +14,7 @@ export interface BuiltEnv {
   data: DataStack;
   auth: AuthStack;
   server: ServerStack;
+  cert?: CertStack;
   web: WebStack;
   deploy: DeployAccessStack;
 }
@@ -34,6 +36,9 @@ export function buildApp(app: App): { account: AccountStack; envs: Record<EnvNam
     alertEmail: (app.node.tryGetContext('swasthyaiq:alertEmail') as string) ?? '',
     monthlyBudgetUsd: Number(app.node.tryGetContext('swasthyaiq:monthlyBudgetUsd') ?? 0),
   });
+
+  const dnsCtx = app.node.tryGetContext('swasthyaiq:dns') as DnsConfig | undefined;
+  const dns = dnsCtx?.hostedZoneId ? dnsCtx : undefined;
 
   const build = (envName: EnvName): BuiltEnv => {
     const ctx = app.node.tryGetContext(`swasthyaiq:${envName}`) as Omit<EnvConfig, 'envName'>;
@@ -62,8 +67,23 @@ export function buildApp(app: App): { account: AccountStack; envs: Record<EnvNam
       userPoolId: auth.userPool.userPoolId,
       appClientIds: [auth.androidClient.userPoolClientId, auth.adminWebClient.userPoolClientId],
       alarmTopic: account.alarmTopic,
+      dns,
     });
-    const web = new WebStack(app, id('Web'), { env, config });
+    const cert = dns
+      ? new CertStack(app, id('Cert'), {
+          env: { account: env.account, region: 'us-east-1' },
+          crossRegionReferences: true,
+          config,
+          dns,
+        })
+      : undefined;
+    const web = new WebStack(app, id('Web'), {
+      env,
+      crossRegionReferences: Boolean(cert),
+      config,
+      dns,
+      certificate: cert?.certificate,
+    });
     const deploy = new DeployAccessStack(app, id('DeployAccess'), {
       env,
       config,
@@ -72,7 +92,7 @@ export function buildApp(app: App): { account: AccountStack; envs: Record<EnvNam
       distributionId: web.distribution.distributionId,
     });
     deploy.addStackDependency(account);
-    return { network, data, auth, server, web, deploy };
+    return { network, data, auth, server, cert, web, deploy };
   };
 
   const envs = { dev: build('dev'), demo: build('demo') };

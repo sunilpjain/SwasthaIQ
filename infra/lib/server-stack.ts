@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AspectPriority, Aspects, CfnOutput, Duration, Stack, Tags, type StackProps } from 'aws-cdk-lib';
+import {
+  AspectPriority,
+  Aspects,
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  Tags,
+  type StackProps,
+} from 'aws-cdk-lib';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cwActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as dlm from 'aws-cdk-lib/aws-dlm';
@@ -8,13 +17,14 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import type * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as route53 from 'aws-cdk-lib/aws-route53';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct, IConstruct } from 'constructs';
-import { prefix, REGION, type EnvConfig } from './config';
+import { prefix, REGION, type DnsConfig, type EnvConfig } from './config';
 
 export interface ServerStackProps extends StackProps {
   config: EnvConfig;
@@ -28,6 +38,7 @@ export interface ServerStackProps extends StackProps {
   userPoolId: string;
   appClientIds: string[];
   alarmTopic?: sns.ITopic;
+  dns?: DnsConfig;
 }
 
 const asset = (name: string): string => readFileSync(join(__dirname, '..', 'assets', 'server', name), 'utf8');
@@ -49,6 +60,8 @@ export class ServerStack extends Stack {
     const logGroup = new logs.LogGroup(this, 'ApiLogs', {
       logGroupName: `/${p}/api`,
       retention: logs.RetentionDays.ONE_MONTH,
+      // Dev logs go with the stack (so a failed first deploy can be retried); demo keeps them.
+      removalPolicy: env === 'demo' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     });
 
     // ---------------------------------------------------------------- IAM (least privilege)
@@ -160,6 +173,8 @@ export class ServerStack extends Stack {
       machineImage: ec2.MachineImage.latestAmazonLinux2023({ cpuType: ec2.AmazonLinuxCpuType.ARM_64 }),
       role: this.role,
       userData,
+      // A config change (e.g. the API domain) rebuilds the server; it holds no data, and the EIP moves over.
+      userDataCausesReplacement: true,
       requireImdsv2: true,
       associatePublicIpAddress: true,
       blockDevices: [
@@ -176,7 +191,10 @@ export class ServerStack extends Stack {
     Aspects.of(this).add(
       {
         visit(node: IConstruct): void {
+          // Rename the template and the instance's reference to it together.
           if (node instanceof ec2.CfnLaunchTemplate) node.addPropertyOverride('LaunchTemplateName', ltName);
+          if (node instanceof ec2.CfnInstance)
+            node.addPropertyOverride('LaunchTemplate.LaunchTemplateName', ltName);
         },
       },
       { priority: AspectPriority.READONLY },
@@ -254,10 +272,23 @@ export class ServerStack extends Stack {
       targets: [{ key: 'InstanceIds', values: [this.instance.instanceId] }],
     });
 
+    if (props.dns?.hostedZoneId) {
+      const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
+        hostedZoneId: props.dns.hostedZoneId,
+        zoneName: props.dns.zoneName,
+      });
+      new route53.ARecord(this, 'ApiRecord', {
+        zone,
+        recordName: props.config.apiDomain,
+        target: route53.RecordTarget.fromIpAddresses(this.eip.ref),
+        ttl: Duration.minutes(5),
+      });
+    }
+
     new CfnOutput(this, 'InstanceId', { value: this.instance.instanceId });
     new CfnOutput(this, 'ElasticIp', {
       value: this.eip.ref,
-      description: `Point ${props.config.apiDomain} (A record) here`,
+      description: `${props.config.apiDomain} points here`,
     });
   }
 }

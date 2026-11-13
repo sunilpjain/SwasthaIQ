@@ -4,8 +4,12 @@ export interface EnvConfig {
   envName: EnvName;
   apiDomain: string;
   webDomain: string;
-  /** ACM certificate in us-east-1 for CloudFront; empty until DNS (DIG-20) is validated. */
-  webCertificateArn: string;
+}
+
+/** Route 53 hosted zone for swasthyaiq.in (DIG-20). Empty id = no DNS records or custom domains. */
+export interface DnsConfig {
+  zoneName: string;
+  hostedZoneId: string;
 }
 
 export const PROJECT_TAG = { key: 'project', value: 'arihant-prototype' } as const;

@@ -59,11 +59,11 @@ describe('ApiClient', () => {
 
 describe('resolveEnv', () => {
   it('defaults to dev, switches to demo, and accepts a local override', () => {
-    expect(resolveEnv({}).apiBaseUrl).toBe('https://dev-api.swasthyaiq.cognihealth.in');
+    expect(resolveEnv({}).apiBaseUrl).toBe('https://dev-api.swasthyaiq.in');
     expect(resolveEnv({ EXPO_PUBLIC_APP_ENV: 'demo' })).toMatchObject({
       appEnv: 'demo',
-      apiBaseUrl: 'https://api.swasthyaiq.cognihealth.in',
-      wsUrl: 'wss://api.swasthyaiq.cognihealth.in/ws',
+      apiBaseUrl: 'https://api.swasthyaiq.in',
+      wsUrl: 'wss://api.swasthyaiq.in/ws',
     });
     expect(resolveEnv({ EXPO_PUBLIC_API_URL: 'http://10.0.2.2:3000/' })).toMatchObject({
       apiBaseUrl: 'http://10.0.2.2:3000',

@@ -9,13 +9,9 @@ export async function createApp(deps: AppDeps): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule.forRoot(deps), { logger: new PinoNestLogger() });
   app.useWebSocketAdapter(new WsAdapter(app));
   app.enableShutdownHooks();
-  // Admin web is served from swasthyaiq.cognihealth.in; the Android app does not need CORS.
+  // Admin web is served from swasthyaiq.in; the Android app does not need CORS.
   app.enableCors({
-    origin: [
-      /^https:\/\/swasthyaiq\.cognihealth\.in$/,
-      /^https:\/\/dev\.swasthyaiq\.cognihealth\.in$/,
-      /^http:\/\/localhost:\d+$/,
-    ],
+    origin: [/^https:\/\/swasthyaiq\.in$/, /^https:\/\/dev\.swasthyaiq\.in$/, /^http:\/\/localhost:\d+$/],
   });
   return app;
 }

@@ -83,12 +83,10 @@ export class AuthStack extends Stack {
         enableTokenRevocation: true,
         preventUserExistenceErrors: true,
         disableOAuth: true, // native username/password sign-in only; no hosted UI or redirects
-      });
-      // Refresh-token rotation (not yet an L2 property): each refresh issues a new
-      // refresh token with a full validity period — this is what makes the session slide.
-      (client.node.defaultChild as cognito.CfnUserPoolClient).addPropertyOverride('RefreshTokenRotation', {
-        Feature: 'ENABLED',
-        RetryGracePeriodSeconds: 10,
+        // Rotation: each refresh (GetTokensFromRefreshToken) returns a new refresh token with a
+        // full validity period — this makes the session slide. Cognito then forbids
+        // ALLOW_REFRESH_TOKEN_AUTH, so the app must refresh with GetTokensFromRefreshToken.
+        refreshTokenRotationGracePeriod: Duration.seconds(10),
       });
       return client;
     };
