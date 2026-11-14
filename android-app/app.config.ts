@@ -8,6 +8,7 @@ const appEnv = process.env.EXPO_PUBLIC_APP_ENV === 'demo' ? 'demo' : 'dev';
 
 const config: ExpoConfig = {
   name: appEnv === 'demo' ? 'SwasthyaIQ · Arihant' : 'SwasthyaIQ · Arihant (dev)',
+  owner: 'swasthyaiq', // Expo account (DIG-21)
   slug: 'swasthyaiq-arihant',
   scheme: 'swasthyaiq',
   version: '0.1.0',
@@ -42,7 +43,10 @@ const config: ExpoConfig = {
     ['expo-build-properties', { android: { minSdkVersion: 29 } }], // Android 10+
   ],
   experiments: { typedRoutes: true },
-  extra: { appEnv },
+  extra: {
+    appEnv,
+    eas: { projectId: '217ca44a-3f46-47ef-9515-483839cd036e' }, // @swasthyaiq/swasthyaiq-arihant
+  },
 };
 
 export default config;
