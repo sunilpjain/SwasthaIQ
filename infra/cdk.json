@@ -3,6 +3,8 @@
   "context": {
     "swasthyaiq:account": "128585880223",
     "swasthyaiq:githubRepo": "sunilpjain/SwasthaIQ",
+    "swasthyaiq:githubOwnerId": "285567246",
+    "swasthyaiq:githubRepoId": "1332992939",
     "swasthyaiq:alertEmail": "sunilpjain68@gmail.com",
     "swasthyaiq:monthlyBudgetUsd": 70,
     "swasthyaiq:dns": {

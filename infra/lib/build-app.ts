@@ -33,6 +33,8 @@ export function buildApp(app: App): { account: AccountStack; envs: Record<EnvNam
   const account = new AccountStack(app, 'SwasthyaIQ-Account', {
     env,
     githubRepo: app.node.tryGetContext('swasthyaiq:githubRepo') as string,
+    githubOwnerId: app.node.tryGetContext('swasthyaiq:githubOwnerId') as string | undefined,
+    githubRepoId: app.node.tryGetContext('swasthyaiq:githubRepoId') as string | undefined,
     alertEmail: (app.node.tryGetContext('swasthyaiq:alertEmail') as string) ?? '',
     monthlyBudgetUsd: Number(app.node.tryGetContext('swasthyaiq:monthlyBudgetUsd') ?? 0),
   });

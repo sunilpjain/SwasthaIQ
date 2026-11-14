@@ -9,6 +9,9 @@ import type { EnvName } from './config';
 
 export interface AccountStackProps extends StackProps {
   githubRepo: string; // owner/name
+  /** Numeric GitHub ids. GitHub's newer OIDC subject is repo:owner@ownerId/name@repoId:ref:… */
+  githubOwnerId?: string;
+  githubRepoId?: string;
   alertEmail: string;
   monthlyBudgetUsd: number;
 }
@@ -44,9 +47,16 @@ export class AccountStack extends Stack {
       clientIds: ['sts.amazonaws.com'],
     });
 
+    // Accept both OIDC subject formats: the classic repo:owner/name:… and the immutable-id
+    // repo:owner@ownerId/name@repoId:… that GitHub now sends for this repository.
+    const [owner, name] = props.githubRepo.split('/');
+    const repoSubjects = [props.githubRepo];
+    if (props.githubOwnerId && props.githubRepoId) {
+      repoSubjects.push(`${owner}@${props.githubOwnerId}/${name}@${props.githubRepoId}`);
+    }
     const subjects: Record<EnvName, string[]> = {
-      dev: [`repo:${props.githubRepo}:ref:refs/heads/main`],
-      demo: [`repo:${props.githubRepo}:ref:refs/tags/v*`],
+      dev: repoSubjects.map((r) => `repo:${r}:ref:refs/heads/main`),
+      demo: repoSubjects.map((r) => `repo:${r}:ref:refs/tags/v*`),
     };
     for (const env of ['dev', 'demo'] as const) {
       const role = new iam.Role(this, `DeployRole-${env}`, {
