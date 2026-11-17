@@ -242,15 +242,17 @@ function wer(ref: string, hyp: string): number {
   const r = words(ref);
   const h = words(hyp);
   if (r.length === 0) return h.length === 0 ? 0 : 1;
+  // Levenshtein over words; rows are always fully filled, so `?? 0` never triggers.
   let prev = Array.from({ length: h.length + 1 }, (_, j) => j);
   for (let i = 1; i <= r.length; i++) {
     const cur = [i];
     for (let j = 1; j <= h.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r[i - 1] === h[j - 1] ? 0 : 1));
+      const sub = (prev[j - 1] ?? 0) + (r[i - 1] === h[j - 1] ? 0 : 1);
+      cur[j] = Math.min((prev[j] ?? 0) + 1, (cur[j - 1] ?? 0) + 1, sub);
     }
     prev = cur;
   }
-  return prev[h.length] / r.length;
+  return (prev[h.length] ?? 0) / r.length;
 }
 
 function termCheck(clip: Clip, transcript: string) {
