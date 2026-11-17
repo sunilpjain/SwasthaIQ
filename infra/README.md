@@ -55,6 +55,16 @@ unset PW
 
 Repeat for `samradnyee` and `admin`. Minimum 12 characters with upper, lower and a digit.
 
+## Check the sign-in session (DIG-32)
+
+After any change to the Auth stack, prove login, silent renewal (7-day rotating refresh token) and remote sign-out against the real pool:
+
+```bash
+pnpm --filter api exec tsx scripts/check-cognito-session.ts              # dev; throwaway user, deleted at the end
+pnpm --filter api exec tsx scripts/check-cognito-session.ts --env demo
+pnpm --filter api exec tsx scripts/check-cognito-session.ts --user saiyam  # real user: prompts for the password, signs them out everywhere
+```
+
 ## Put the Sarvam key in Secrets Manager
 
 ```bash
