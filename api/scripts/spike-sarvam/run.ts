@@ -2,6 +2,11 @@
  * DIG-25 spike: Sarvam streaming speech-to-text on synthetic consult clips.
  *
  *   pnpm --filter api exec tsx scripts/spike-sarvam/run.ts [--only <clipId>] [--config <name>] [--fresh-audio]
+ *   pnpm --filter api exec tsx scripts/spike-sarvam/run.ts --file <recording.wav> [--config <name>]
+ *
+ * --file transcribes any 16 kHz mono 16-bit WAV (e.g. a doctor's recording) with the chosen
+ * config (default: the recommended one) and prints the transcript, language and latency.
+ * Convert a WhatsApp .opus first: afconvert -f WAVE -d LEI16@16000 -c 1 in.opus out.wav
  *
  * 1. Makes each clip with Sarvam TTS (16 kHz mono WAV), cached in out/audio/.
  * 2. Streams the PCM in real time (100 ms chunks) to the realtime STT WebSocket,
@@ -51,6 +56,8 @@ const CONFIGS: SttConfig[] = [
     keyterms: true,
     streamType: 'fast',
   },
+  // Same without keyterms: checks whether the shared term list biases transcripts (e.g. "operation" -> "OGD").
+  { name: 'v4 auto codemix fast', model: 'saaras:v4', language: 'auto', mode: 'codemix', streamType: 'fast' },
 ];
 
 interface RunResult {
@@ -273,6 +280,24 @@ async function main() {
   const onlyConfig = args.includes('--config') ? args[args.indexOf('--config') + 1] : undefined;
   mkdirSync(AUDIO, { recursive: true });
   const key = await apiKey();
+
+  const file = args.includes('--file') ? args[args.indexOf('--file') + 1] : undefined;
+  if (file) {
+    const cfg = CONFIGS.find((c) => c.name === (onlyConfig ?? 'v4+keyterms auto codemix fast'));
+    if (!cfg) throw new Error(`unknown config ${onlyConfig ?? ''}`);
+    const pcm = pcmFromWav(readFileSync(file));
+    // The clip only supplies a language when the config isn't 'auto'.
+    const clip = { ...CLIPS[0]!, id: 'file', terms: [] };
+    const r = await stream(pcm, clip, cfg, key);
+    console.log(`config: ${cfg.name}`);
+    console.log(`audio: ${(pcm.length / (SAMPLE_RATE * 2)).toFixed(1)} s, language: ${r.detected ?? '-'}`);
+    console.log(
+      `first word: ${r.firstWordMs ?? '-'} ms, tail: ${r.tailMs ?? '-'} ms${r.error ? `, error: ${r.error}` : ''}`,
+    );
+    console.log(`\n${r.transcript}`);
+    return;
+  }
+
   const clips = CLIPS.filter((c) => !only || c.id === only);
   const results: RunResult[] = [];
 

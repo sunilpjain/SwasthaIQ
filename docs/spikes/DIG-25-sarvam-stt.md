@@ -4,7 +4,7 @@ Run on 17 Nov 2026 with `api/scripts/spike-sarvam/run.ts`. All clips are synthet
 
 ## Decision
 
-**Go with Sarvam, with adjustments:** use `saaras:v4` on the realtime WebSocket with `language_code=auto`, `mode=codemix`, `keyterms` and `stream_type=fast`.
+**Go with Sarvam, with adjustments:** use `saaras:v4` on the realtime WebSocket with `language_code=auto`, `mode=codemix` and `stream_type=fast`, **without a shared `keyterms` list**. Updated 17 Nov after the first real recordings: a shared term list inserted gastro terms into an eye consult. See "Real recordings" below.
 
 Before Sprint 3, re-run the script on clips spoken by the doctors themselves. The clips here are TTS audio: clean, steady and noise-free, so these numbers are a best case.
 
@@ -53,11 +53,34 @@ Codemix writes English medical words in Latin script inside Indic sentences, for
 
 ## Adjustments for Sprint 3 (dictation relay)
 
-1. **Connection settings:** `model=saaras:v4`, `language_code=auto`, `mode=codemix`, `stream_type=fast`, `keyterms=<clinic term list>`. Auto plus codemix also handles a doctor switching language mid-consult without a language picker.
-2. **Term list:** keep a per-doctor list of up to 50 keyterms, covering drug names from the Rx formulary plus abbreviations (LFT, OGD, IOP, fundus …). Keyterms made no difference in this run, but they cost nothing and should help with less common drug names.
+1. **Connection settings:** `model=saaras:v4`, `language_code=auto`, `mode=codemix`, `stream_type=fast`. Auto plus codemix also handles a doctor switching language mid-consult without a language picker.
+2. **Term list: off by default.** A shared list made real transcripts worse (see "Real recordings"). If a term list is added later, make it per doctor and small, and keep it only if it improves the doctors' own recorded clips. Don't add it on the assumption that it helps.
 3. **Numbers:** the transcript mixes digits and words ("ninety-four", "40 mg"). Structuring (Bedrock) should normalise doses and lab values. Don't rely on the speech-to-text output format.
 4. **Fallback:** keep per-field dictation and confirm-before-save as the safety net. Everything AI-filled is unconfirmed until the doctor confirms it.
 5. **Usage:** bill per second from `session.end.audio_duration_s` and write it to `usage_events`.
+
+## Real recordings (17 Nov 2026)
+
+Both doctors recorded made-up consults as WhatsApp voice notes on a phone (no real patients; "Mr. X", "Mrs. Y"). They were converted with `afconvert` and transcribed with `run.ts --file`, with and without the shared term list. Full transcripts and the doctors' checks are in `DIG-25-real-clips-review.md`.
+
+| #   | Doctor     | Clip                                             | Detected | First word               | Without term list                    | With shared term list                      |
+| --- | ---------- | ------------------------------------------------ | -------- | ------------------------ | ------------------------------------ | ------------------------------------------ |
+| 1   | Samradnyee | Cataract, English, 65 s                          | en-IN ✅ | 2.6 s                    | very good                            | "liver function test" → "LFT"              |
+| 2   | Samradnyee | Cataract, Marathi + English, 35 s                | mr-IN ✅ | 4.5 s (silence at start) | "Operation", "CBC" ✅                | "OGD", "LFT, ALT" ❌                       |
+| 3   | Samradnyee | Allergic conjunctivitis, English + Marathi, 78 s | mr-IN ✅ | 2.4 s                    | 2 errors: olopatadine, meibography ¹ | same drug error; meibography → "fundus" ❌ |
+| 4   | Saiyam     | Oesophageal cancer follow-up, English, 95 s      | en-IN ✅ | 3.8 s                    | 2 small slips ²                      | same                                       |
+| 5   | Saiyam     | Lap cholecystectomy follow-up, English, 41 s     | en-IN ✅ | 2.6 s                    | "SOS basis" ✅, confirmed fine       | "as as basis" ❌                           |
+
+¹ Confirmed by Dr. Samradnyee: "olopatadine" → "Ola Patadine", "meibography" → "mammography". Otherwise "caught it well".
+² Confirmed by Dr. Saiyam: "in six months" for "since six months", and an extra "in" after "malignancy". "Rest all seems fine."
+
+- Real phone audio works in English and in Marathi–English, with no language picker. English medical words come out in Latin script.
+- **The shared term list made every difference worse.** It replaced words the doctor said with words from the list (OGD, LFT, ALT, fundus) or broke a common one ("SOS").
+- **Rare drug and test names are the weak spot** (olopatadine, meibography). Structuring must match them against the clinic's drug and test lists and flag low-confidence matches for the doctor to confirm.
+- Restarts and repeated phrases in natural speech come through as spoken, so structuring has to tidy them up.
+- **Doctors want concise note-style output** (Dr. Saiyam): "Loss of weight, significant loss of weight around 8 kgs in the last 2-3 months" should read "Significant weight loss of 8 kg in the last 2–3 months". That's a structuring requirement (DIG-59): rewrite into short clinical phrasing without changing facts, and keep the verbatim transcript beside the note.
+
+Still needed: a Hindi or Gujarati clip and one switching language mid-sentence, plus the OnePlus recording.
 
 ## Cost
 
