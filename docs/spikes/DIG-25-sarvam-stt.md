@@ -63,17 +63,19 @@ Codemix writes English medical words in Latin script inside Indic sentences, for
 
 Both doctors recorded made-up consults as WhatsApp voice notes on a phone (no real patients; "Mr. X", "Mrs. Y"). They were converted with `afconvert` and transcribed with `run.ts --file`, with and without the shared term list. Full transcripts and the doctors' checks are in `DIG-25-real-clips-review.md`.
 
-| #   | Doctor     | Clip                                             | Detected | First word               | Without term list                    | With shared term list                      |
-| --- | ---------- | ------------------------------------------------ | -------- | ------------------------ | ------------------------------------ | ------------------------------------------ |
-| 1   | Samradnyee | Cataract, English, 65 s                          | en-IN ✅ | 2.6 s                    | very good                            | "liver function test" → "LFT"              |
-| 2   | Samradnyee | Cataract, Marathi + English, 35 s                | mr-IN ✅ | 4.5 s (silence at start) | "Operation", "CBC" ✅                | "OGD", "LFT, ALT" ❌                       |
-| 3   | Samradnyee | Allergic conjunctivitis, English + Marathi, 78 s | mr-IN ✅ | 2.4 s                    | 2 errors: olopatadine, meibography ¹ | same drug error; meibography → "fundus" ❌ |
-| 4   | Saiyam     | Oesophageal cancer follow-up, English, 95 s      | en-IN ✅ | 3.8 s                    | 2 small slips ²                      | same                                       |
-| 5   | Saiyam     | Lap cholecystectomy follow-up, English, 41 s     | en-IN ✅ | 2.6 s                    | "SOS basis" ✅; 1 small slip ³       | "as as basis" ❌                           |
+| #   | Doctor     | Clip                                                              | Detected | First word               | Without term list                    | With shared term list                      |
+| --- | ---------- | ----------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------ | ------------------------------------------ |
+| 1   | Samradnyee | Cataract, English, 65 s                                           | en-IN ✅ | 2.6 s                    | very good                            | "liver function test" → "LFT"              |
+| 2   | Samradnyee | Cataract, Marathi + English, 35 s                                 | mr-IN ✅ | 4.5 s (silence at start) | "Operation", "CBC" ✅                | "OGD", "LFT, ALT" ❌                       |
+| 3   | Samradnyee | Allergic conjunctivitis, English + Marathi, 78 s                  | mr-IN ✅ | 2.4 s                    | 2 errors: olopatadine, meibography ¹ | same drug error; meibography → "fundus" ❌ |
+| 4   | Saiyam     | Oesophageal cancer follow-up, English, 95 s                       | en-IN ✅ | 3.8 s                    | 2 small slips ²                      | same                                       |
+| 5   | Saiyam     | Lap cholecystectomy follow-up, English, 41 s                      | en-IN ✅ | 2.6 s                    | "SOS basis" ✅; 1 small slip ³       | "as as basis" ❌                           |
+| 6   | Saiyam     | Acute cholecystitis → lap chole, Rx, English, 105 s (OnePlus MP3) | en-IN ✅ | –                        | 1 extra word ⁴                       | not run                                    |
 
 ¹ Confirmed by Dr. Samradnyee: "olopatadine" → "Ola Patadine", "meibography" → "mammography". Otherwise "caught it well".
 ² Confirmed by Dr. Saiyam: "in six months" for "since six months", and an extra "in" after "malignancy". "Rest all seems fine."
 ³ Confirmed by Dr. Saiyam: "explain to the relative" for "explained to the relatives".
+⁴ Confirmed by Dr. Saiyam: an extra "Let" before ciprofloxacin; the missing diclofenac dose was not dictated. "Rest is correct."
 
 - Real phone audio works in English and in Marathi–English, with no language picker. English medical words come out in Latin script.
 - **The shared term list made every difference worse.** It replaced words the doctor said with words from the list (OGD, LFT, ALT, fundus) or broke a common one ("SOS").
@@ -81,7 +83,9 @@ Both doctors recorded made-up consults as WhatsApp voice notes on a phone (no re
 - Restarts and repeated phrases in natural speech come through as spoken, so structuring has to tidy them up.
 - **Doctors want concise note-style output** (Dr. Saiyam): "Loss of weight, significant loss of weight around 8 kgs in the last 2-3 months" should read "Significant weight loss of 8 kg in the last 2–3 months". That's a structuring requirement (DIG-59): rewrite into short clinical phrasing without changing facts, and keep the verbatim transcript beside the note.
 
-Still needed: a Hindi or Gujarati clip and one switching language mid-sentence, plus the OnePlus recording.
+- A medicine dictated without a dose (diclofenac, clip 6) must be flagged by the Rx step for the doctor to complete.
+
+Still needed: a Hindi or Gujarati clip and one switching language mid-sentence.
 
 ## Cost
 
