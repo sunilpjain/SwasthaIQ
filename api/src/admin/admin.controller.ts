@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   HttpCode,
   Param,
   ParseBoolPipe,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -40,8 +42,8 @@ export class AdminController {
   }
 
   @Get('audit')
-  auditLog(@Query('limit') limit?: string) {
-    return this.audit.list(limit ? Number(limit) : 100);
+  auditLog(@Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number) {
+    return this.audit.list(limit); // a non-number limit is a 400, not a database error
   }
 
   @Post('queue/reset')
