@@ -12,3 +12,6 @@ android-app/android/
 android-app/ios/
 *.keystore
 *.jks
+
+# DIG-25 spike output (generated audio, results)
+api/scripts/spike-sarvam/out/
