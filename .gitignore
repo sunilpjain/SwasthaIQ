@@ -15,3 +15,4 @@ android-app/ios/
 
 # DIG-25 spike output (generated audio, results)
 api/scripts/spike-sarvam/out/
+api/scripts/spike-bedrock/out/
