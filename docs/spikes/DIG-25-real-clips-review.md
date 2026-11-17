@@ -97,10 +97,21 @@ He also asked whether the note can be tidied into note-writing style. For exampl
 
 ---
 
+## Clip 6: Dr. Saiyam, OnePlus Recorder, 17:15, 105 seconds, English (detected: English)
+
+Recorded with the OnePlus Recorder app (MP3), no medical term list.
+
+> Patient came with a complaint of pain in the right upper quadrant since 1 month, on and off, more after food intake. No history of vomiting or jaundice or fever. Patient is a known diabetic since 10 years on routine medications. No other history, no previous surgical history. On examination, abdomen is soft, non-tender. I will advise for a ultrasound abdomen and pelvis and a blood test including a complete blood count, CBC, and a LFT test. And I will ask the patient to review after the same. However, After review, I have seen the reports and it shows diagnosis as acute calculous cholecystitis. Per abdomen examination finding is abdomen is soft and non-tender. I will advise the patient for emergency surgery. That is laparoscopic cholecystectomy. Patient will need admission today and surgery tentatively for tomorrow to get anesthesia evaluation and other investigations as needed. Prescription for the patient is tablet Pantoprazole 40 mg once a day before breakfast for one month. Tablet Diclofenac twice a day for three days. Tablet. **Let** ciprofloxacin 500 mg thrice a day for five days. It's.
+
+**Doctor's check (Dr. Saiyam, 17 Nov):** one extra word ("Let" before ciprofloxacin). No dose was dictated for diclofenac, so the transcript is right there. The rest is correct.
+
+---
+
 ## What this shows so far
 
-- **Five real phone recordings, all usable.** The language was detected correctly every time (English, and Marathi mixed with English), and the first words appear in about 2–4 seconds.
-- **Gastro dictation in English (Dr. Saiyam) is almost word-perfect:** three small slips in 136 seconds ("in" for "since", one extra "in", "explain to the relative" for "explained to the relatives"), confirmed by Dr. Saiyam. Long clinical phrases came through correctly: dysphagia, adenocarcinoma, laparoscopic cholecystectomy, PET CT, serum CEA.
+- **Six real phone recordings, all usable** (WhatsApp voice notes and the OnePlus Recorder app). The language was detected correctly every time (English, and Marathi mixed with English), and the first words appear in about 2–4 seconds.
+- **Gastro dictation in English (Dr. Saiyam) is almost word-perfect:** four small slips in about 4 minutes ("in" for "since", two extra words, "explain to the relative" for "explained to the relatives"), confirmed by Dr. Saiyam. Long clinical phrases and prescriptions came through correctly: dysphagia, adenocarcinoma, acute calculous cholecystitis, laparoscopic cholecystectomy, PET CT, serum CEA, "Pantoprazole 40 mg once a day before breakfast", "ciprofloxacin 500 mg thrice a day for five days".
+- **A missing dose is a dictation gap, not a transcription error** (diclofenac in clip 6). The Rx step should flag a medicine without a dose for the doctor to fill in.
 - **Doctors want a concise, note-style result, not a verbatim transcript.** Turning spoken sentences into short clinical notes ("Significant weight loss of 8 kg in the last 2–3 months") is the structuring step's job (DIG-59). The doctor sees the tidied note, with the transcript kept alongside.
 - **Rare drug and test names are the weak spot:** olopatadine → "Ola Patadine", meibography → "mammography" (confirmed by Dr. Samradnyee). Structuring has to match drugs and tests against the clinic's lists and show low-confidence matches, and the doctor confirms them.
 - **The shared term list made every difference worse:**
