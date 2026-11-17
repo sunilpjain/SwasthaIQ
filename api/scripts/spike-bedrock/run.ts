@@ -20,7 +20,8 @@ import { AnalyzeDocumentCommand, type Block, TextractClient } from '@aws-sdk/cli
 const REGION = 'ap-south-1';
 const OUT = join(__dirname, 'out');
 const IMAGE = join(__dirname, 'sample-lab-report.png');
-const MODELS = ['in.anthropic.claude-opus-5', 'global.anthropic.claude-opus-5-5'] as const;
+// Decision (17 Nov 2026): Opus 5 via the India-only profile. See CLAUDE.md.
+const MODELS = ['in.anthropic.claude-opus-5'] as const;
 
 // ------------------------------------------------------------------ test inputs (synthetic)
 
@@ -141,7 +142,6 @@ interface Usage {
 /** Anthropic list prices (USD per 1M tokens). Bedrock prices may differ; see the report. */
 const PRICE: Record<string, { in: number; out: number }> = {
   'in.anthropic.claude-opus-5': { in: 5, out: 25 },
-  'global.anthropic.claude-opus-5-5': { in: 4, out: 20 },
 };
 const usd = (model: string, u: Usage) =>
   ((PRICE[model]?.in ?? 0) * u.input_tokens + (PRICE[model]?.out ?? 0) * u.output_tokens) / 1e6;
