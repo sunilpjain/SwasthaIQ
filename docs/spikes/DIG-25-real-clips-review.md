@@ -93,14 +93,14 @@ He also asked whether the note can be tidied into note-writing style. For exampl
 
 **B: with term list:** the same, except "On **as as** basis" ❌ and "seven days".
 
-**Doctor's check (Dr. Saiyam, 17 Nov):** fine as transcribed.
+**Doctor's check (Dr. Saiyam, 17 Nov):** one small slip. "explain to the relative" should be "**explained** to the **relatives**".
 
 ---
 
 ## What this shows so far
 
 - **Five real phone recordings, all usable.** The language was detected correctly every time (English, and Marathi mixed with English), and the first words appear in about 2–4 seconds.
-- **Gastro dictation in English (Dr. Saiyam) is almost word-perfect:** two small slips in 136 seconds ("in" for "since", one extra "in"), confirmed by Dr. Saiyam. Long clinical phrases came through correctly: dysphagia, adenocarcinoma, laparoscopic cholecystectomy, PET CT, serum CEA.
+- **Gastro dictation in English (Dr. Saiyam) is almost word-perfect:** three small slips in 136 seconds ("in" for "since", one extra "in", "explain to the relative" for "explained to the relatives"), confirmed by Dr. Saiyam. Long clinical phrases came through correctly: dysphagia, adenocarcinoma, laparoscopic cholecystectomy, PET CT, serum CEA.
 - **Doctors want a concise, note-style result, not a verbatim transcript.** Turning spoken sentences into short clinical notes ("Significant weight loss of 8 kg in the last 2–3 months") is the structuring step's job (DIG-59). The doctor sees the tidied note, with the transcript kept alongside.
 - **Rare drug and test names are the weak spot:** olopatadine → "Ola Patadine", meibography → "mammography" (confirmed by Dr. Samradnyee). Structuring has to match drugs and tests against the clinic's lists and show low-confidence matches, and the doctor confirms them.
 - **The shared term list made every difference worse:**

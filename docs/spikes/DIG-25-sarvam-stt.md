@@ -69,10 +69,11 @@ Both doctors recorded made-up consults as WhatsApp voice notes on a phone (no re
 | 2   | Samradnyee | Cataract, Marathi + English, 35 s                | mr-IN ✅ | 4.5 s (silence at start) | "Operation", "CBC" ✅                | "OGD", "LFT, ALT" ❌                       |
 | 3   | Samradnyee | Allergic conjunctivitis, English + Marathi, 78 s | mr-IN ✅ | 2.4 s                    | 2 errors: olopatadine, meibography ¹ | same drug error; meibography → "fundus" ❌ |
 | 4   | Saiyam     | Oesophageal cancer follow-up, English, 95 s      | en-IN ✅ | 3.8 s                    | 2 small slips ²                      | same                                       |
-| 5   | Saiyam     | Lap cholecystectomy follow-up, English, 41 s     | en-IN ✅ | 2.6 s                    | "SOS basis" ✅, confirmed fine       | "as as basis" ❌                           |
+| 5   | Saiyam     | Lap cholecystectomy follow-up, English, 41 s     | en-IN ✅ | 2.6 s                    | "SOS basis" ✅; 1 small slip ³       | "as as basis" ❌                           |
 
 ¹ Confirmed by Dr. Samradnyee: "olopatadine" → "Ola Patadine", "meibography" → "mammography". Otherwise "caught it well".
 ² Confirmed by Dr. Saiyam: "in six months" for "since six months", and an extra "in" after "malignancy". "Rest all seems fine."
+³ Confirmed by Dr. Saiyam: "explain to the relative" for "explained to the relatives".
 
 - Real phone audio works in English and in Marathi–English, with no language picker. English medical words come out in Latin script.
 - **The shared term list made every difference worse.** It replaced words the doctor said with words from the list (OGD, LFT, ALT, fundus) or broke a common one ("SOS").
