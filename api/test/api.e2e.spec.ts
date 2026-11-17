@@ -185,6 +185,15 @@ describe('API integration (real PostgreSQL)', () => {
       expect(short.body).toEqual([]);
     });
 
+    it('keeps search and trends doctor-only, and 400s a non-UUID trend', async () => {
+      await http().get('/patients?q=kanta').set('Authorization', `Bearer ${admin}`).expect(403);
+      await http().get(`/patients/${G3}/labs/alt/trend`).set('Authorization', `Bearer ${admin}`).expect(403);
+      await http()
+        .get('/patients/not-a-uuid/labs/alt/trend')
+        .set('Authorization', `Bearer ${saiyam}`)
+        .expect(400);
+    });
+
     it('404s unknown patients and visits', async () => {
       await http()
         .get(`/patients/${seedUuid('none')}`)
@@ -310,6 +319,16 @@ describe('API integration (real PostgreSQL)', () => {
       expect(res.body.every((r: { at: string }) => Boolean(r.at))).toBe(true);
     });
 
+    it('keeps stats, audit and Clear test visits admin-only', async () => {
+      await http().get('/admin/stats').set('Authorization', `Bearer ${saiyam}`).expect(403);
+      await http().get('/admin/audit').set('Authorization', `Bearer ${saiyam}`).expect(403);
+      await http().post('/admin/test-visits/clear').set('Authorization', `Bearer ${samradnyee}`).expect(403);
+    });
+
+    it('400s a non-numeric audit limit', async () => {
+      await http().get('/admin/audit?limit=abc').set('Authorization', `Bearer ${admin}`).expect(400);
+    });
+
     it('lists users', async () => {
       const res = await http().get('/admin/users').set('Authorization', `Bearer ${admin}`).expect(200);
       expect(res.body.map((u: { username: string }) => u.username)).toEqual([
@@ -355,6 +374,19 @@ describe('API integration (real PostgreSQL)', () => {
 
     it('404s an unknown user', async () => {
       await http().post('/admin/users/nobody/sign-out').set('Authorization', `Bearer ${admin}`).expect(404);
+      await http()
+        .put('/admin/users/nobody/enabled')
+        .send({ enabled: false })
+        .set('Authorization', `Bearer ${admin}`)
+        .expect(404);
+    });
+
+    it('400s a non-boolean enabled value', async () => {
+      await http()
+        .put('/admin/users/saiyam/enabled')
+        .send({ enabled: 'maybe' })
+        .set('Authorization', `Bearer ${admin}`)
+        .expect(400);
     });
   });
 });
