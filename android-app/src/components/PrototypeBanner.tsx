@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { PROTOTYPE_BANNER } from '@swasthyaiq/shared';
 import { env } from '../config/env';
-import { colors, spacing } from '../theme/tokens';
+import { colors, spacing, type } from '../theme/tokens';
 
 /** Shown on every screen (spec: "Clearly a prototype"). Also says which backend the build uses. */
 export default function PrototypeBanner() {
@@ -16,6 +16,6 @@ export default function PrototypeBanner() {
 }
 
 const styles = StyleSheet.create({
-  banner: { backgroundColor: colors.bannerBg, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
-  text: { color: colors.bannerText, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  banner: { backgroundColor: colors.banner, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  text: { ...type.caption, color: colors.onBanner, textAlign: 'center' },
 });
