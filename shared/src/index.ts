@@ -21,7 +21,8 @@ export type Specialty = (typeof SPECIALTIES)[number];
 export const CAPTURE_SOURCES = ['dictated', 'scanned', 'typed'] as const;
 export type CaptureSource = (typeof CAPTURE_SOURCES)[number];
 
-export const QUEUE_STATUSES = ['waiting', 'in_consult', 'done'] as const;
+/** not_arrived: appointment booked but not checked in. Doctors never see the token. */
+export const QUEUE_STATUSES = ['not_arrived', 'waiting', 'in_consult', 'done'] as const;
 export type QueueStatus = (typeof QUEUE_STATUSES)[number];
 
 export const VISIT_STATUSES = ['draft', 'signed'] as const;
@@ -62,8 +63,17 @@ export interface QueueEntry {
   reason: string;
   status: QueueStatus;
   inConsultWithUserId: string | null;
-  /** Doctor-facing order: own patients first, then the rest by token. */
+  /** Fictitious appointment time for today (ISO 8601), regenerated on every reset. */
+  appointmentAt: string;
+  /** Fictitious check-in time (ISO 8601); null while the patient has not arrived. */
+  checkedInAt: string | null;
+  /** Doctor-facing order: own patients first, then by appointment time. */
   isMine: boolean;
+}
+
+/** Response of "Reset queue" (doctor button, admin button, 2 am job). */
+export interface QueueResetResult {
+  reset: number;
 }
 
 export interface ConsultField {
@@ -142,10 +152,16 @@ export function normaliseUsername(input: string): string {
   return input.trim().toLowerCase();
 }
 
-/** Sort a queue so the signed-in doctor's own patients come first, then by token. */
-export function sortQueue<T extends { isMine: boolean; patient: { token: string } }>(entries: T[]): T[] {
+/**
+ * Sort a queue so the signed-in doctor's own patients come first, then by appointment time
+ * (ISO strings in the same time zone sort correctly as text), then by token as a tie-break.
+ */
+export function sortQueue<T extends { isMine: boolean; appointmentAt: string; patient: { token: string } }>(
+  entries: T[],
+): T[] {
   return [...entries].sort((a, b) => {
     if (a.isMine !== b.isMine) return a.isMine ? -1 : 1;
+    if (a.appointmentAt !== b.appointmentAt) return a.appointmentAt < b.appointmentAt ? -1 : 1;
     return a.patient.token.localeCompare(b.patient.token, 'en', { numeric: true });
   });
 }

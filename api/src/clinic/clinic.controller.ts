@@ -1,7 +1,15 @@
-import { Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Patient, PatientDetail, QueueEntry, UserSummary, VisitDetail } from '@swasthyaiq/shared';
+import type {
+  Patient,
+  PatientDetail,
+  QueueEntry,
+  QueueResetResult,
+  UserSummary,
+  VisitDetail,
+} from '@swasthyaiq/shared';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
+import { Audit } from '../audit/audit.interceptor';
 import { ClinicService } from './clinic.service';
 
 @ApiTags('me')
@@ -28,6 +36,14 @@ export class ClinicController {
   @Get('queue')
   queue(@CurrentUser() user: AuthUser): Promise<QueueEntry[]> {
     return this.clinic.queue(user);
+  }
+
+  /** Puts the queue back to the start of the day with fresh times. Never deletes visits. */
+  @Post('queue/reset')
+  @HttpCode(200)
+  @Audit('queue.reset')
+  resetQueue(): Promise<QueueResetResult> {
+    return this.clinic.resetQueue();
   }
 
   @Post('queue/:patientId/open')

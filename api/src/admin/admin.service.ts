@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { sql } from 'kysely';
+import type { QueueResetResult } from '@swasthyaiq/shared';
 import { DB, type Db } from '../db/database';
 import { AuthService } from '../auth/auth.service';
 import { CognitoAdmin } from '../auth/cognito-admin';
@@ -30,7 +31,7 @@ export class AdminService {
   }
 
   /** Puts all 12 patients back to Waiting. Never deletes saved consults. */
-  async resetQueue(): Promise<{ reset: number }> {
+  async resetQueue(): Promise<QueueResetResult> {
     return { reset: await resetQueue(this.db) };
   }
 

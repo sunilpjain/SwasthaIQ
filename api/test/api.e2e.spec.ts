@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import type { QueueEntry } from '@swasthyaiq/shared';
 import { startApp, type TestApp } from './helpers';
 import { seed, seedUuid } from '../src/seed/seed';
+import { QueueResetScheduler, SCHEDULED_RESET_ACTION } from '../src/clinic/queue-reset.scheduler';
 
 describe('API integration (real PostgreSQL)', () => {
   let t: TestApp;
@@ -12,6 +13,8 @@ describe('API integration (real PostgreSQL)', () => {
   const http = () => request(t.app.getHttpServer());
   const G3 = seedUuid('patient:G3');
   const E2 = seedUuid('patient:E2');
+  const G6 = seedUuid('patient:G6');
+  const statuses = (q: QueueEntry[]) => Object.fromEntries(q.map((e) => [e.patient.token, e.status]));
 
   beforeAll(async () => {
     t = await startApp();
@@ -102,7 +105,31 @@ describe('API integration (real PostgreSQL)', () => {
         'G5',
         'G6',
       ]);
-      expect(q.every((e) => e.status === 'waiting')).toBe(true);
+      // Each doctor's last appointment has not arrived yet; everyone else is waiting.
+      expect(q.filter((e) => e.status === 'not_arrived').map((e) => e.patient.token)).toEqual(['E6', 'G6']);
+      expect(q.filter((e) => e.status === 'waiting')).toHaveLength(10);
+    });
+
+    it('shows appointment and check-in times, own patients sorted by appointment', async () => {
+      const res = await http().get('/queue').set('Authorization', `Bearer ${saiyam}`).expect(200);
+      const q = res.body as QueueEntry[];
+      const mine = q.slice(0, 6);
+      expect(mine.every((e) => e.isMine)).toBe(true);
+      const times = mine.map((e) => Date.parse(e.appointmentAt));
+      expect(times).toEqual([...times].sort((a, b) => a - b));
+      expect(times[1]! - times[0]!).toBe(15 * 60 * 1000);
+      for (const e of q) {
+        if (e.status === 'not_arrived') expect(e.checkedInAt).toBeNull();
+        else expect(Date.parse(e.checkedInAt!)).toBeLessThan(Date.parse(e.appointmentAt));
+      }
+    });
+
+    it('opening a patient who has not arrived checks them in', async () => {
+      const res = await http().post(`/queue/${G6}/open`).set('Authorization', `Bearer ${saiyam}`).expect(201);
+      const e = res.body as QueueEntry;
+      expect(e.status).toBe('in_consult');
+      expect(e.inConsultWithUserId).toBeTruthy();
+      expect(Math.abs(Date.parse(e.checkedInAt!) - Date.now())).toBeLessThan(60_000);
     });
 
     it('opening a patient sets In consult; a second doctor gets a warning, not a lock', async () => {
@@ -126,6 +153,38 @@ describe('API integration (real PostgreSQL)', () => {
         .set('Authorization', `Bearer ${saiyam}`)
         .expect(404);
       await http().post('/queue/not-a-uuid/open').set('Authorization', `Bearer ${saiyam}`).expect(400);
+    });
+
+    it('doctor reset puts everyone back with fresh times and keeps history; admin cannot use it', async () => {
+      await http().post(`/queue/${E2}/open`).set('Authorization', `Bearer ${samradnyee}`).expect(201);
+      await http().post('/queue/reset').set('Authorization', `Bearer ${admin}`).expect(403);
+      const res = await http().post('/queue/reset').set('Authorization', `Bearer ${samradnyee}`).expect(200);
+      expect(res.body).toEqual({ reset: 12 });
+      const q = (await http().get('/queue').set('Authorization', `Bearer ${saiyam}`).expect(200))
+        .body as QueueEntry[];
+      expect(statuses(q)).toMatchObject({
+        E2: 'waiting',
+        G3: 'waiting',
+        G6: 'not_arrived',
+        E6: 'not_arrived',
+      });
+      expect(q.every((e) => e.inConsultWithUserId === null)).toBe(true);
+      const p = await http().get(`/patients/${E2}`).set('Authorization', `Bearer ${saiyam}`).expect(200);
+      expect(p.body.visits).toHaveLength(2);
+    });
+
+    it('the 2 am job resets the queue and audits it as the system', async () => {
+      await http().post(`/queue/${G3}/open`).set('Authorization', `Bearer ${saiyam}`).expect(201);
+      const reset = await t.app.get(QueueResetScheduler).run();
+      expect(reset).toBe(12);
+      const q = (await http().get('/queue').set('Authorization', `Bearer ${saiyam}`).expect(200))
+        .body as QueueEntry[];
+      expect(statuses(q).G3).toBe('waiting');
+      const audit = await http()
+        .get('/admin/audit?limit=5')
+        .set('Authorization', `Bearer ${admin}`)
+        .expect(200);
+      expect(audit.body[0]).toMatchObject({ action: SCHEDULED_RESET_ACTION, username: 'system' });
     });
   });
 
@@ -295,7 +354,8 @@ describe('API integration (real PostgreSQL)', () => {
       const res = await http().post('/admin/queue/reset').set('Authorization', `Bearer ${admin}`).expect(200);
       expect(res.body).toEqual({ reset: 12 });
       const q = await http().get('/queue').set('Authorization', `Bearer ${saiyam}`).expect(200);
-      expect((q.body as QueueEntry[]).every((e) => e.status === 'waiting')).toBe(true);
+      expect((q.body as QueueEntry[]).filter((e) => e.status === 'waiting')).toHaveLength(10);
+      expect((q.body as QueueEntry[]).filter((e) => e.status === 'not_arrived')).toHaveLength(2);
       const p = await http().get(`/patients/${E2}`).set('Authorization', `Bearer ${saiyam}`).expect(200);
       expect(p.body.visits).toHaveLength(2);
     });
