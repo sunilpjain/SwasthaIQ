@@ -53,6 +53,25 @@
         ]
       }
     },
+    "/queue/reset": {
+      "post": {
+        "operationId": "ClinicController_resetQueue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clinic"
+        ]
+      }
+    },
     "/queue/{patientId}/open": {
       "post": {
         "operationId": "ClinicController_open",

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
+import { dailySchedule } from '../clinic/queue-schedule';
 import type { Db } from '../db/database';
 import { SEED_PATIENTS, SEED_USERS, SEED_VISITS } from './seed-data';
 
@@ -77,10 +78,26 @@ export async function seed(db: Db): Promise<SeedResult> {
         (await trx.selectFrom('patients').select('id').where('token', '=', p.token).executeTakeFirstOrThrow())
           .id;
       patientIds.set(p.token, id);
+    }
 
+    // Today's queue with fictitious times. Re-running the seed only refreshes the reason, so a
+    // queue in use keeps its statuses and times (reset regenerates them).
+    const slots = dailySchedule(
+      SEED_PATIENTS.map((p) => ({ id: patientIds.get(p.token)!, token: p.token, doctorId: p.doctor })),
+      new Date(),
+    );
+    for (const p of SEED_PATIENTS) {
+      const slot = slots.find((s) => s.patientId === patientIds.get(p.token))!;
       await trx
         .insertInto('queue_entries')
-        .values({ patient_id: id, reason: p.reason, in_consult_with: null })
+        .values({
+          patient_id: slot.patientId,
+          reason: p.reason,
+          status: slot.checkedInAt ? 'waiting' : 'not_arrived',
+          in_consult_with: null,
+          appointment_at: slot.appointmentAt,
+          checked_in_at: slot.checkedInAt,
+        })
         .onConflict((oc) => oc.column('patient_id').doUpdateSet({ reason: p.reason }))
         .execute();
     }
@@ -202,13 +219,32 @@ export async function seed(db: Db): Promise<SeedResult> {
   });
 }
 
-/** "Reset queue": all patients back to Waiting. Never deletes saved consults. */
-export async function resetQueue(db: Db): Promise<number> {
-  const res = await db
-    .updateTable('queue_entries')
-    .set({ status: 'waiting', in_consult_with: null, status_changed_at: new Date() })
-    .executeTakeFirst();
-  return Number(res.numUpdatedRows);
+/**
+ * "Reset queue": fresh fictitious appointment and check-in times for today, everyone back to
+ * Waiting (or Not arrived for each doctor's last appointment). Never deletes saved consults.
+ */
+export async function resetQueue(db: Db, now = new Date()): Promise<number> {
+  return db.transaction().execute(async (trx) => {
+    const patients = await trx
+      .selectFrom('queue_entries')
+      .innerJoin('patients', 'patients.id', 'queue_entries.patient_id')
+      .select(['patients.id', 'patients.token', 'patients.primary_doctor_id as doctorId'])
+      .execute();
+    for (const slot of dailySchedule(patients, now)) {
+      await trx
+        .updateTable('queue_entries')
+        .set({
+          status: slot.checkedInAt ? 'waiting' : 'not_arrived',
+          in_consult_with: null,
+          appointment_at: slot.appointmentAt,
+          checked_in_at: slot.checkedInAt,
+          status_changed_at: now,
+        })
+        .where('patient_id', '=', slot.patientId)
+        .execute();
+    }
+    return patients.length;
+  });
 }
 
 /** "Clear test visits": deletes visits and lab reports made during testing; keeps seed history. */

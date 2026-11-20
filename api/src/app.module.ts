@@ -10,6 +10,7 @@ import { CognitoAdmin } from './auth/cognito-admin';
 import { TokenVerifier } from './auth/token-verifier';
 import { ClinicController, MeController } from './clinic/clinic.controller';
 import { ClinicService } from './clinic/clinic.service';
+import { QueueResetScheduler } from './clinic/queue-reset.scheduler';
 import { DB, type Db } from './db/database';
 import { HealthController } from './health/health.controller';
 import { RealtimeGateway } from './realtime/realtime.gateway';
@@ -43,6 +44,7 @@ export class AppModule {
         AuditService,
         ClinicService,
         AdminService,
+        QueueResetScheduler,
         RealtimeGateway,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },

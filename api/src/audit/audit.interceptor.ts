@@ -1,6 +1,7 @@
 import {
   HttpException,
   Injectable,
+  SetMetadata,
   type CallHandler,
   type ExecutionContext,
   type NestInterceptor,
@@ -11,6 +12,9 @@ import type { AuthUser } from '../auth/auth.decorators';
 import { AuditService } from './audit.service';
 
 export const AUDIT_ACTION = 'swasthyaiq:auditAction';
+
+/** Names the audit action for a route (default: "METHOD /route/pattern"). */
+export const Audit = (action: string): MethodDecorator => SetMetadata(AUDIT_ACTION, action);
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 

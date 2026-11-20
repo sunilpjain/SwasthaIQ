@@ -42,9 +42,11 @@ export interface PatientsTable {
 export interface QueueEntriesTable {
   patient_id: string;
   reason: string;
-  status: Generated<'waiting' | 'in_consult' | 'done'>;
+  status: Generated<'not_arrived' | 'waiting' | 'in_consult' | 'done'>;
   in_consult_with: string | null;
   status_changed_at: Timestamp;
+  appointment_at: ColumnType<Date, Date | string, Date | string>;
+  checked_in_at: Timestamp | null;
 }
 
 export interface VisitsTable {

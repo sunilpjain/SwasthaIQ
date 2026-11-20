@@ -10,15 +10,12 @@ import {
   Post,
   Put,
   Query,
-  SetMetadata,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
-import { AUDIT_ACTION } from '../audit/audit.interceptor';
+import { Audit } from '../audit/audit.interceptor';
 import { AuditService } from '../audit/audit.service';
 import { AdminService } from './admin.service';
-
-const Audit = (action: string) => SetMetadata(AUDIT_ACTION, action);
 
 /** Endpoints for the web Admin dashboard — admin role only. */
 @ApiTags('admin')

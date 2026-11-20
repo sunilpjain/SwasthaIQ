@@ -6,12 +6,15 @@ import {
   type Patient,
   type PatientDetail,
   type QueueEntry,
+  type QueueResetResult,
   type RxLine,
   type UserSummary,
   type VisitDetail,
   type VisitSummary,
 } from '@swasthyaiq/shared';
+import { sql } from 'kysely';
 import { DB, type Db } from '../db/database';
+import { resetQueue } from '../seed/seed';
 import type { AuthUser } from '../auth/auth.decorators';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -81,7 +84,7 @@ export class ClinicService {
     };
   }
 
-  /** Today's queue: all 12 patients, the signed-in doctor's own first. */
+  /** Today's queue: all 12 patients, the signed-in doctor's own first, then by appointment time. */
   async queue(user: AuthUser): Promise<QueueEntry[]> {
     const rows = await this.db
       .selectFrom('queue_entries')
@@ -91,6 +94,8 @@ export class ClinicService {
         'queue_entries.reason',
         'queue_entries.status',
         'queue_entries.in_consult_with',
+        'queue_entries.appointment_at',
+        'queue_entries.checked_in_at',
       ])
       .execute();
     return sortQueue(
@@ -99,6 +104,8 @@ export class ClinicService {
         reason: r.reason,
         status: r.status,
         inConsultWithUserId: r.in_consult_with,
+        appointmentAt: r.appointment_at.toISOString(),
+        checkedInAt: r.checked_in_at?.toISOString() ?? null,
         isMine: r.primary_doctor_id === user.id,
       })),
     );
@@ -107,6 +114,7 @@ export class ClinicService {
   /**
    * Marks a patient as "In consult" with this doctor. A second doctor opening the
    * same patient gets a warning (409 with details) unless they pass force=true — never a lock.
+   * Opening a patient who has not arrived checks them in now (doctors may test any case).
    */
   async openConsult(user: AuthUser, patientId: string, force: boolean): Promise<QueueEntry> {
     assertUuid(patientId, 'Patient');
@@ -125,13 +133,23 @@ export class ClinicService {
     }
     await this.db
       .updateTable('queue_entries')
-      .set({ status: 'in_consult', in_consult_with: user.id, status_changed_at: new Date() })
+      .set({
+        status: 'in_consult',
+        in_consult_with: user.id,
+        status_changed_at: new Date(),
+        checked_in_at: sql<Date>`coalesce(checked_in_at, now())`,
+      })
       .where('patient_id', '=', patientId)
       .execute();
     const all = await this.queue(user);
     const found = all.find((q) => q.patient.id === patientId);
     if (!found) throw new NotFoundException({ code: 'not_found', message: 'Patient not in queue' });
     return found;
+  }
+
+  /** Doctor's "Reset queue" button: same as the admin action and the 2 am job. */
+  async resetQueue(): Promise<QueueResetResult> {
+    return { reset: await resetQueue(this.db) };
   }
 
   async patient(patientId: string): Promise<PatientDetail> {
