@@ -4,6 +4,8 @@ Android doctor app, 360 dp wide, exported at 2×. Synthetic patients only. Built
 
 Source in Figma: page "Hi-fi screens (DIG-3)" of the design system, https://www.figma.com/design/gesNzlq8x6ylvt8tdt8INh
 
+**Whole design in one file:** `SwasthyaIQ-full-design.pdf` (33 pages): design system (foundations, icons, components; PNGs in `design-system/`), the 12 screens, 11 states, 3 post-prototype placeholders (DIG-93) and the A4 summary.
+
 | File                                      | Screen                                       |
 | ----------------------------------------- | -------------------------------------------- |
 | `dig-3/01-sign-in.png`                    | 1a Sign in                                   |
