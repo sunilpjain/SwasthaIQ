@@ -2,6 +2,8 @@
 
 Signed off by both doctors on 21 Nov 2026 (DIG-30). Synthetic patients only.
 
+22 Nov 2026 (DIG-3): the primary colour changed from purple to clinical blue `#0A4F96`; the A4 summary in `dig-29/` was re-exported in blue. Content and layout are unchanged from the signed-off version.
+
 | Folder    | Story  | What                                                                                         |
 | --------- | ------ | -------------------------------------------------------------------------------------------- |
 | `dig-27/` | DIG-27 | Low-fidelity wireframes v4: 10 doctor screens (incl. 8b feedback) and the admin dashboard    |
