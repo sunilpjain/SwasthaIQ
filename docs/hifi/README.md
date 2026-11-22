@@ -4,7 +4,7 @@ Android doctor app, 360 dp wide, exported at 2×. Synthetic patients only. Built
 
 Source in Figma: page "Hi-fi screens (DIG-3)" of the design system, https://www.figma.com/design/gesNzlq8x6ylvt8tdt8INh
 
-**Whole design in one file:** `SwasthyaIQ-full-design.pdf` (33 pages): design system (foundations, icons, components; PNGs in `design-system/`), the 12 screens, 11 states, 3 post-prototype placeholders (DIG-93) and the A4 summary.
+**Whole design in one file:** `SwasthyaIQ-full-design.pdf` (39 pages): design system (foundations, icons, components; PNGs in `design-system/`), the 12 screens, 11 states, the admin dashboard, 3 post-prototype placeholders (DIG-93) and the A4 summary.
 
 | File                                      | Screen                                       |
 | ----------------------------------------- | -------------------------------------------- |
@@ -40,6 +40,18 @@ Empty, loading, offline and error states (`dig-3/states/`):
 
 State rules: errors say what happened, that nothing was lost, and the next step; they never show patient details or raw error text (only a short code). Offline work is kept on the phone and synced later.
 
+Admin dashboard, web at `/admin`, 1440 px (`admin/`; Figma page "Admin hi-fi (DIG-3)"):
+
+| File                               | View                                                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `a0-sign-in.png`                   | Admin sign-in; admin accounts only                                                                    |
+| `a1-activity.png`                  | Activity: KPIs, consults per day by doctor, capture-mode mix, recent consults, admin actions panel    |
+| `a2-feedback.png`                  | Prototype feedback (DIG-92/78): KPIs, issues by area, latest notes with a privacy reminder and Redact |
+| `a3-cost.png`                      | Cost (DIG-77): AI cost per day by service, monthly AWS budget against ₹ 6,000, usage by service       |
+| `a4-confirm-clear-test-visits.png` | Confirmation for "Clear test visits": counts, what stays, type CLEAR, audited                         |
+
+Admin rules: one shell for every view (title, shared date and doctor filters, KPI tiles, charts, table, CSV export); patients appear only as ids; Dr. Saiyam is blue and Dr. Samradnyee purple in every chart; destructive actions need a typed confirmation and are audited; the admin cannot switch off their own login. The other views (Capture modes, Labs & prescriptions, Engine comparison, Errors, Audit log, Users & actions) reuse the same shell.
+
 Placeholders, built after the prototype (`dig-3/post-prototype/`), from doctor feedback on 22 Nov 2026 asking for a more holistic history with trends:
 
 | File                      | Placeholder                                                                                                  |
@@ -56,4 +68,4 @@ Style decisions (22 Nov 2026):
 - Queue: compact divider rows with a coloured status strip (grey Not arrived, purple Waiting, blue In consult, green Done); all six patients of a doctor fit on one screen.
 - Patient screens: a blue "Patient header" component keeps name, age/sex, allergy and visit time visible; content sits in white cards on a pale grey background.
 - Every text pair stays at least 7:1, body text 16 sp, tap targets 48 dp.
-- Not yet done: admin dashboard hi-fi; clickable prototype. The app's `android-app/src/theme/tokens.ts` still has the purple primary and is updated when the screens are built.
+- Not yet done: clickable prototype. The app's `android-app/src/theme/tokens.ts` still has the purple primary and is updated when the screens are built.
