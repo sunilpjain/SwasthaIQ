@@ -4,6 +4,8 @@ Android doctor app, 360 dp wide, exported at 2×. Synthetic patients only. Built
 
 Source in Figma: page "Hi-fi screens (DIG-3)" of the design system, https://www.figma.com/design/gesNzlq8x6ylvt8tdt8INh
 
+**Whole design in one file:** `SwasthyaIQ-full-design.pdf` (33 pages): design system (foundations, icons, components; PNGs in `design-system/`), the 12 screens, 11 states, 3 post-prototype placeholders (DIG-93) and the A4 summary.
+
 | File                                      | Screen                                       |
 | ----------------------------------------- | -------------------------------------------- |
 | `dig-3/01-sign-in.png`                    | 1a Sign in                                   |
@@ -37,6 +39,16 @@ Empty, loading, offline and error states (`dig-3/states/`):
 | `s11-signed-out.png`            | Session ended (admin sign-out or 7 days unused); fingerprint off           |
 
 State rules: errors say what happened, that nothing was lost, and the next step; they never show patient details or raw error text (only a short code). Offline work is kept on the phone and synced later.
+
+Placeholders, built after the prototype (`dig-3/post-prototype/`), from doctor feedback on 22 Nov 2026 asking for a more holistic history with trends:
+
+| File                      | Placeholder                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `p1-patient-timeline.png` | One timeline for the patient: visits by both doctors, labs, medicines, condition changes and scanned records |
+| `p2-key-parameters.png`   | Key-parameters card on the patient summary: 2×2 tiles with latest value and sparkline, picked by conditions  |
+| `p3-trend-detail.png`     | Trend chart with target band, medicine-change marker and value list; per-eye chart with OD and OS lines      |
+
+Rules for the real build: plot confirmed values only; no interpretation text (the doctor reads the trend); vision plotted as logMAR with Snellen labels; units normalised across labs. The doctors still need to confirm the key parameters for each specialty. The seed needs 4–6 points per key parameter for charts to be useful.
 
 Style decisions (22 Nov 2026):
 
