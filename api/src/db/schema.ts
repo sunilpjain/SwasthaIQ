@@ -63,7 +63,11 @@ export interface VisitsTable {
   signed_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
-  diagnoses_client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  diagnoses_client_updated_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null
+  >;
 }
 
 export interface VisitDiagnosesTable {
