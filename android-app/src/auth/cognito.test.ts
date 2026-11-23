@@ -1,6 +1,7 @@
 import { CognitoClient, CognitoError, jwtExpiry } from './cognito';
 
-const b64url = (o: object) => btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64url = (o: object) =>
+  btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const jwt = (exp: number) => `${b64url({ alg: 'RS256' })}.${b64url({ exp, token_use: 'access' })}.sig`;
 
 function fakeFetch(status: number, body: unknown, fail = false) {
