@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
+import ProfileMenu from '../../components/ProfileMenu';
 import { colors, MIN_TAP } from '../../theme/tokens';
 
 const icon = (glyph: string) =>
@@ -14,6 +15,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTitleStyle: { color: colors.onSurface },
+        headerRight: () => <ProfileMenu />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.onSurfaceVariant,
         tabBarStyle: { minHeight: MIN_TAP + 16 },

@@ -71,3 +71,36 @@ describe('resolveEnv', () => {
     });
   });
 });
+
+describe('ApiClient session end (DIG-43)', () => {
+  it('tells the session when the Admin signed the doctor out remotely', async () => {
+    const ended: string[] = [];
+    const f = fakeFetch(401, { code: 'session_revoked', message: 'Signed out' });
+    const api = new ApiClient(
+      'https://api.test',
+      async () => 'tok',
+      f.impl,
+      15_000,
+      (c) => {
+        ended.push(c);
+      },
+    );
+    await expect(api.queue()).rejects.toMatchObject({ code: 'session_revoked' });
+    expect(ended).toEqual(['session_revoked']);
+  });
+
+  it('does not end the session for other errors', async () => {
+    const ended: string[] = [];
+    const api = new ApiClient(
+      'https://api.test',
+      async () => 'tok',
+      fakeFetch(403, { code: 'wrong_role' }).impl,
+      15_000,
+      (c) => {
+        ended.push(c);
+      },
+    );
+    await expect(api.queue()).rejects.toMatchObject({ code: 'wrong_role' });
+    expect(ended).toEqual([]);
+  });
+});

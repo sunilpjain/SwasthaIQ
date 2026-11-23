@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import Placeholder from '../../components/Placeholder';
-import { ApiClient } from '../../api/client';
+import { api, useSession } from '../../auth/SessionProvider';
 import { env } from '../../config/env';
 import { colors } from '../../theme/tokens';
 
-// Sprint 1 goal: "the empty app logs in against real AWS". Until login lands (Sprint 2),
-// the Queue tab proves connectivity by calling the public /health endpoint.
-const api = new ApiClient(env.apiBaseUrl, async () => null);
+// Until the queue screen lands (DIG-47), the Queue tab shows who is signed in and that an
+// authenticated call to the server works.
 
 export default function QueueScreen() {
+  const { me } = useSession();
   const [status, setStatus] = useState('Checking server…');
 
   useEffect(() => {
     api
-      .health()
-      .then((h) => setStatus(`Server ${h.status} · database ${h.db} · ${h.version}`))
+      .queue()
+      .then((q) => setStatus(`Signed in · ${q.length} patients in today's queue`))
       .catch(() => setStatus(`Cannot reach ${env.apiBaseUrl}`));
   }, []);
 
   return (
-    <Placeholder title="Queue" sprint="Sprint 2">
+    <Placeholder title={me ? `Queue · ${me.displayName}` : 'Queue'} sprint="Sprint 2">
       <Text style={styles.status}>{status}</Text>
     </Placeholder>
   );
