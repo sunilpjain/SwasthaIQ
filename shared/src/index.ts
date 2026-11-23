@@ -55,6 +55,7 @@ export interface Patient {
   phone: string | null;
   primaryDoctorId: string;
   allergies: string[];
+  /** Names of conditions that are not resolved (full detail is in PatientDetail.conditions). */
   conditions: string[];
 }
 
@@ -130,14 +131,165 @@ export interface VisitSummary {
 }
 
 export interface VisitDetail extends VisitSummary {
+  /** ISO 8601; null while the visit is a draft. */
+  signedAt: string | null;
+  diagnoses: Diagnosis[];
+  investigations: InvestigationOrder[];
   fields: ConsultField[];
   rxLines: RxLine[];
   labReports: LabReport[];
+  /** Additions made after signing, oldest first. The signed note itself never changes. */
+  amendments: VisitAmendment[];
+}
+
+/** ICD-10 coded, or "Misc" free text (21 Nov: ICD-10 only, Misc allowed). */
+export const DIAGNOSIS_KINDS = ['icd10', 'misc'] as const;
+export type DiagnosisKind = (typeof DIAGNOSIS_KINDS)[number];
+
+export interface Diagnosis {
+  kind: DiagnosisKind;
+  /** e.g. "K21.0"; null for Misc. */
+  icd10Code: string | null;
+  label: string;
+}
+
+/** ICD-10 code shape: letter, two digits, optional dot and 1–4 characters (e.g. K21.0, H40.1131). */
+export const ICD10_CODE_RE = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/;
+
+export interface ConsultFieldInput {
+  section: string;
+  key: string;
+  value: string;
+  source: CaptureSource;
+  confirmed: boolean;
+  /** Device time of the edit (ISO 8601). An older edit never overwrites a newer one. */
+  clientUpdatedAt: string;
+}
+
+/**
+ * Body of PUT /visits/:id (draft save). The app picks the visit id (a UUID) itself, so a save
+ * queued offline and retried is idempotent: the first call creates the draft, later calls update it.
+ * Fields are upserted by section + key; fields not sent are left as they are.
+ */
+export interface VisitDraftInput {
+  patientId: string;
+  fields?: ConsultFieldInput[];
+  /** Replaces the whole list when sent, unless an edit with a newer clientUpdatedAt is already stored. */
+  diagnoses?: Diagnosis[];
+  diagnosesClientUpdatedAt?: string;
+  /** ISO date, or null to clear. */
+  followUp?: string | null;
+}
+
+/** Body of POST /visits/:id/amendments. `id` is picked by the app so a retried call is idempotent. */
+export interface VisitAmendmentInput {
+  id: string;
+  reason: string;
+  fields?: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
+  diagnoses?: Diagnosis[];
+}
+
+export interface VisitAmendment {
+  id: string;
+  /** The signed note is version 1; each amendment adds one. */
+  version: number;
+  amendedBy: string;
+  amendedByName: string;
+  reason: string;
+  fields: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
+  diagnoses: Diagnosis[] | null;
+  createdAt: string;
+}
+
+/** Why a sign was refused (422 `sign_blocked`). */
+export interface SignProblem {
+  code: 'no_diagnosis' | 'unconfirmed_fields';
+  /** For unconfirmed_fields: "section.key" of each field still waiting for the doctor. */
+  fields?: string[];
+}
+
+export const CONDITION_STATUSES = ['active', 'controlled', 'resolved'] as const;
+export type ConditionStatus = (typeof CONDITION_STATUSES)[number];
+
+export interface ConditionStatusChange {
+  status: ConditionStatus;
+  /** null for conditions loaded with the seed or migrated from the old list. */
+  changedByName: string | null;
+  changedAt: string;
+}
+
+export interface PatientCondition {
+  id: string;
+  name: string;
+  icd10Code: string | null;
+  status: ConditionStatus;
+  /** ISO date the condition started, if known. */
+  since: string | null;
+  updatedAt: string;
+  /** Every status the condition has had, oldest first. */
+  history: ConditionStatusChange[];
+}
+
+/** Body of POST /patients/:id/conditions. */
+export interface PatientConditionInput {
+  name: string;
+  icd10Code?: string | null;
+  status: ConditionStatus;
+  since?: string | null;
+}
+
+/** Body of PATCH /patients/:id/conditions/:conditionId. */
+export interface PatientConditionUpdate {
+  status: ConditionStatus;
+}
+
+/** A test ordered at a visit. `testCode` matches LabValue.testCode when the test has a lab result. */
+export interface InvestigationOrder {
+  testName: string;
+  testCode: string | null;
+}
+
+/**
+ * Ordered on a signed visit and still waiting: a lab test with no result on or after the visit
+ * date, or a test without a lab code (imaging, OCT…) until the ordering doctor's next visit.
+ */
+export interface PendingTest extends InvestigationOrder {
+  visitId: string;
+  visitDate: string;
+  doctorId: string;
+  doctorName: string;
+}
+
+/** The prescription from one signed visit, with who wrote it. */
+export interface PrescriptionSummary {
+  visitId: string;
+  visitDate: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: Specialty | null;
+  advice: string | null;
+  lines: RxLine[];
+}
+
+/** The most recent confirmed result of one test. */
+export interface LatestLab extends LabValue {
+  reportDate: string;
 }
 
 export interface PatientDetail {
   patient: Patient;
+  conditions: PatientCondition[];
+  /** Newest first. Filtered when GET /patients/:id is called with ?doctorId=. */
   visits: VisitSummary[];
+  /** Most recent signed visit by either doctor (never filtered). */
+  lastVisit: VisitSummary | null;
+  /** Most recent signed prescription by either doctor. */
+  lastRx: PrescriptionSummary | null;
+  /** Each doctor's latest signed prescription: what the patient should be taking now. */
+  currentMedicines: PrescriptionSummary[];
+  /** Latest confirmed value of each lab test, by test code. */
+  latestLabs: LatestLab[];
+  pendingTests: PendingTest[];
 }
 
 export interface HealthResponse {

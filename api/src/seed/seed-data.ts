@@ -216,6 +216,8 @@ export interface SeedVisit {
   fields: SeedField[];
   rx?: SeedRx[];
   advice?: string;
+  /** Tests ordered at this visit; `code` matches a lab test code when the test has a lab result. */
+  investigations?: { name: string; code?: string }[];
   labs?: { date: string; labName: string; values: SeedLab[] };
 }
 
@@ -259,6 +261,11 @@ export const SEED_VISITS: SeedVisit[] = [
     patient: 'G2',
     doctor: 'saiyam',
     date: '2026-10-23',
+    investigations: [
+      { name: 'Complete blood count', code: 'HB' },
+      { name: 'Liver function tests', code: 'ALT' },
+      { name: 'ECG' },
+    ],
     diagnosis: 'Symptomatic cholelithiasis',
     icd10: 'K80.20',
     fields: [
@@ -292,6 +299,7 @@ export const SEED_VISITS: SeedVisit[] = [
     patient: 'G3',
     doctor: 'saiyam',
     date: '2026-07-10',
+    investigations: [{ name: 'Liver function tests', code: 'ALT' }],
     diagnosis: 'Non-alcoholic fatty liver disease',
     icd10: 'K76.0',
     fields: [
@@ -427,6 +435,7 @@ export const SEED_VISITS: SeedVisit[] = [
     patient: 'G6',
     doctor: 'saiyam',
     date: '2026-09-11',
+    investigations: [{ name: 'HbA1c', code: 'HBA1C' }],
     diagnosis: 'Chronic pancreatitis, pain controlled',
     icd10: 'K86.1',
     fields: [
@@ -517,6 +526,7 @@ export const SEED_VISITS: SeedVisit[] = [
     patient: 'E2',
     doctor: 'samradnyee',
     date: '2026-10-16',
+    investigations: [{ name: 'OCT macula' }],
     diagnosis: 'Moderate NPDR, both eyes',
     icd10: 'E11.339',
     fields: [

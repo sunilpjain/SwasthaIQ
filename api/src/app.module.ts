@@ -15,6 +15,10 @@ import { DB, type Db } from './db/database';
 import { HealthController } from './health/health.controller';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { APP_VERSION } from './tokens';
+import { PatientsController } from './patients/patients.controller';
+import { PatientsService } from './patients/patients.service';
+import { VisitsController } from './visits/visits.controller';
+import { VisitsService } from './visits/visits.service';
 
 export interface AppDeps {
   db: Db;
@@ -33,7 +37,14 @@ export class AppModule {
   static forRoot(deps: AppDeps): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, MeController, ClinicController, AdminController],
+      controllers: [
+        HealthController,
+        MeController,
+        ClinicController,
+        PatientsController,
+        VisitsController,
+        AdminController,
+      ],
       providers: [
         { provide: DB, useValue: deps.db },
         { provide: TokenVerifier, useValue: deps.verifier },
@@ -43,6 +54,8 @@ export class AppModule {
         AuthService,
         AuditService,
         ClinicService,
+        PatientsService,
+        VisitsService,
         AdminService,
         QueueResetScheduler,
         RealtimeGateway,
