@@ -4,11 +4,17 @@
  * Names match the Figma variables' code syntax (color/on-primary → colors.onPrimary).
  *
  * Rules: light theme only; every text colour ≥ 7:1 on its background (outlines ≥ 3:1), checked in
- * tokens.test.ts; tap targets ≥ 48 dp; body text ≥ 16 sp. Brand = Cognihealth purple (primary) and
- * magenta (brandAccent: brand moments only, never buttons, so it is not confused with error red).
+ * tokens.test.ts; tap targets ≥ 48 dp; body text ≥ 16 sp. Primary = clinical blue (since 22 Nov 2026,
+ * DIG-3); secondary = Cognihealth purple (Waiting, other doctor, amendments); magenta (brandAccent)
+ * for brand moments only, never buttons, so it is not confused with error red. Neutrals are cool
+ * blue-grey. Values synced from the Figma variables on 23 Nov 2026 (DIG-43).
  * Screens must read colours, type and spacing only from here.
  */
 export const palette = {
+  clinicalBlue10: '#06213F',
+  clinicalBlue30: '#0F3F73',
+  clinicalBlue40: '#0A4F96',
+  clinicalBlue90: '#DCEAF9',
   purple10: '#221A32',
   purple40: '#634C91',
   purple90: '#E8E4F1',
@@ -23,12 +29,12 @@ export const palette = {
   slate40: '#3F4A55',
   slate90: '#ECEFF2',
   neutral0: '#FFFFFF',
-  neutral96: '#F3F2F7',
-  neutral92: '#E8E6EF',
+  neutral96: '#F2F4F7',
+  neutral92: '#E6E9EE',
   neutral80: '#C9C5D0',
   neutral50: '#78767F',
-  neutral30: '#47454F',
-  neutral10: '#1C1B20',
+  neutral30: '#434852',
+  neutral10: '#1A1D23',
   red10: '#410E0B',
   red40: '#A8231C',
   red90: '#F9DEDC',
@@ -45,10 +51,16 @@ export const palette = {
 const p = palette;
 
 export const colors = {
-  primary: p.purple40,
+  primary: p.clinicalBlue40,
   onPrimary: p.neutral0,
-  primaryContainer: p.purple90,
-  onPrimaryContainer: p.purple10,
+  primaryContainer: p.clinicalBlue90,
+  onPrimaryContainer: p.clinicalBlue10,
+  /** Dark blue for the patient header and other full-bleed bars. */
+  primaryDark: p.clinicalBlue30,
+  secondary: p.purple40,
+  onSecondary: p.neutral0,
+  secondaryContainer: p.purple90,
+  onSecondaryContainer: p.purple10,
   brandAccent: p.magenta50,
   brandAccentText: p.magenta40,
   info: p.blue40,

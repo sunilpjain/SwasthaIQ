@@ -24,6 +24,9 @@ export class ApiError extends Error {
 }
 
 export type TokenProvider = () => Promise<string | null>;
+
+/** API codes that end the session: remote sign-out by the Admin, a disabled or removed account. */
+export const SESSION_ENDING_CODES = new Set(['session_revoked', 'user_disabled', 'unknown_user']);
 type Fetch = typeof fetch;
 
 /**
@@ -36,6 +39,8 @@ export class ApiClient {
     private readonly getToken: TokenProvider,
     private readonly fetchImpl: Fetch = fetch,
     private readonly timeoutMs = 15_000,
+    /** Told when the API ends the session (see SESSION_ENDING_CODES). */
+    private readonly onSessionEnded?: (code: string) => void | Promise<void>,
   ) {}
 
   health(): Promise<HealthResponse> {
@@ -80,6 +85,8 @@ export class ApiClient {
     const body: unknown = await res.json().catch(() => null);
     if (!res.ok) {
       const b = (body ?? {}) as { code?: string; message?: string };
+      if (res.status === 401 && b.code && SESSION_ENDING_CODES.has(b.code))
+        await this.onSessionEnded?.(b.code);
       throw new ApiError(res.status, b.code ?? `http_${res.status}`, b.message ?? 'Something went wrong');
     }
     return body as T;
