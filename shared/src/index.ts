@@ -55,6 +55,7 @@ export interface Patient {
   phone: string | null;
   primaryDoctorId: string;
   allergies: string[];
+  /** Names of conditions that are not resolved (full detail is in PatientDetail.conditions). */
   conditions: string[];
 }
 
@@ -133,6 +134,7 @@ export interface VisitDetail extends VisitSummary {
   /** ISO 8601; null while the visit is a draft. */
   signedAt: string | null;
   diagnoses: Diagnosis[];
+  investigations: InvestigationOrder[];
   fields: ConsultField[];
   rxLines: RxLine[];
   labReports: LabReport[];
@@ -206,9 +208,88 @@ export interface SignProblem {
   fields?: string[];
 }
 
+export const CONDITION_STATUSES = ['active', 'controlled', 'resolved'] as const;
+export type ConditionStatus = (typeof CONDITION_STATUSES)[number];
+
+export interface ConditionStatusChange {
+  status: ConditionStatus;
+  /** null for conditions loaded with the seed or migrated from the old list. */
+  changedByName: string | null;
+  changedAt: string;
+}
+
+export interface PatientCondition {
+  id: string;
+  name: string;
+  icd10Code: string | null;
+  status: ConditionStatus;
+  /** ISO date the condition started, if known. */
+  since: string | null;
+  updatedAt: string;
+  /** Every status the condition has had, oldest first. */
+  history: ConditionStatusChange[];
+}
+
+/** Body of POST /patients/:id/conditions. */
+export interface PatientConditionInput {
+  name: string;
+  icd10Code?: string | null;
+  status: ConditionStatus;
+  since?: string | null;
+}
+
+/** Body of PATCH /patients/:id/conditions/:conditionId. */
+export interface PatientConditionUpdate {
+  status: ConditionStatus;
+}
+
+/** A test ordered at a visit. `testCode` matches LabValue.testCode when the test has a lab result. */
+export interface InvestigationOrder {
+  testName: string;
+  testCode: string | null;
+}
+
+/**
+ * Ordered on a signed visit and still waiting: a lab test with no result on or after the visit
+ * date, or a test without a lab code (imaging, OCT…) until the ordering doctor's next visit.
+ */
+export interface PendingTest extends InvestigationOrder {
+  visitId: string;
+  visitDate: string;
+  doctorId: string;
+  doctorName: string;
+}
+
+/** The prescription from one signed visit, with who wrote it. */
+export interface PrescriptionSummary {
+  visitId: string;
+  visitDate: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: Specialty | null;
+  advice: string | null;
+  lines: RxLine[];
+}
+
+/** The most recent confirmed result of one test. */
+export interface LatestLab extends LabValue {
+  reportDate: string;
+}
+
 export interface PatientDetail {
   patient: Patient;
+  conditions: PatientCondition[];
+  /** Newest first. Filtered when GET /patients/:id is called with ?doctorId=. */
   visits: VisitSummary[];
+  /** Most recent signed visit by either doctor (never filtered). */
+  lastVisit: VisitSummary | null;
+  /** Most recent signed prescription by either doctor. */
+  lastRx: PrescriptionSummary | null;
+  /** Each doctor's latest signed prescription: what the patient should be taking now. */
+  currentMedicines: PrescriptionSummary[];
+  /** Latest confirmed value of each lab test, by test code. */
+  latestLabs: LatestLab[];
+  pendingTests: PendingTest[];
 }
 
 export interface HealthResponse {

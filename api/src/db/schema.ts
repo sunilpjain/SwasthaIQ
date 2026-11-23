@@ -34,9 +34,39 @@ export interface PatientsTable {
   phone: string | null;
   primary_doctor_id: string;
   allergies: Generated<string[]>;
-  conditions: Generated<string[]>;
   is_seed: Generated<boolean>;
   created_at: Timestamp;
+}
+
+export type ConditionStatusCol = 'active' | 'controlled' | 'resolved';
+
+export interface PatientConditionsTable {
+  id: Generated<string>;
+  patient_id: string;
+  name: string;
+  icd10_code: string | null;
+  status: ConditionStatusCol;
+  since: DateCol | null;
+  is_seed: Generated<boolean>;
+  updated_by: string | null;
+  updated_at: Timestamp;
+  created_at: Timestamp;
+}
+
+export interface PatientConditionHistoryTable {
+  id: Generated<string>;
+  condition_id: string;
+  status: ConditionStatusCol;
+  changed_by: string | null;
+  changed_at: Timestamp;
+}
+
+export interface InvestigationOrdersTable {
+  id: Generated<string>;
+  visit_id: string;
+  position: number;
+  test_name: string;
+  test_code: string | null;
 }
 
 export interface QueueEntriesTable {
@@ -63,7 +93,11 @@ export interface VisitsTable {
   signed_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
-  diagnoses_client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  diagnoses_client_updated_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null
+  >;
 }
 
 export interface VisitDiagnosesTable {
@@ -193,9 +227,12 @@ export interface Database {
   users: UsersTable;
   session_revocations: SessionRevocationsTable;
   patients: PatientsTable;
+  patient_conditions: PatientConditionsTable;
+  patient_condition_history: PatientConditionHistoryTable;
   queue_entries: QueueEntriesTable;
   visits: VisitsTable;
   visit_diagnoses: VisitDiagnosesTable;
+  investigation_orders: InvestigationOrdersTable;
   visit_amendments: VisitAmendmentsTable;
   consult_fields: ConsultFieldsTable;
   prescriptions: PrescriptionsTable;

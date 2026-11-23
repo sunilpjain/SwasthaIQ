@@ -93,7 +93,7 @@
     },
     "/patients": {
       "get": {
-        "operationId": "ClinicController_search",
+        "operationId": "PatientsController_search",
         "parameters": [],
         "responses": {
           "200": {
@@ -106,13 +106,13 @@
           }
         ],
         "tags": [
-          "clinic"
+          "patients"
         ]
       }
     },
     "/patients/{id}": {
       "get": {
-        "operationId": "ClinicController_patient",
+        "operationId": "PatientsController_patient",
         "parameters": [],
         "responses": {
           "200": {
@@ -125,13 +125,13 @@
           }
         ],
         "tags": [
-          "clinic"
+          "patients"
         ]
       }
     },
     "/patients/{id}/labs/{testCode}/trend": {
       "get": {
-        "operationId": "ClinicController_trend",
+        "operationId": "PatientsController_trend",
         "parameters": [],
         "responses": {
           "200": {
@@ -144,7 +144,45 @@
           }
         ],
         "tags": [
-          "clinic"
+          "patients"
+        ]
+      }
+    },
+    "/patients/{id}/conditions": {
+      "post": {
+        "operationId": "PatientsController_addCondition",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "patients"
+        ]
+      }
+    },
+    "/patients/{id}/conditions/{conditionId}": {
+      "patch": {
+        "operationId": "PatientsController_updateCondition",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "patients"
         ]
       }
     },

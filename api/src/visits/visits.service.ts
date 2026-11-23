@@ -326,7 +326,13 @@ export class VisitsService {
       .executeTakeFirst();
     if (!v) throw new NotFoundException({ code: 'not_found', message: 'Visit not found' });
 
-    const [diagRows, fields, rx, reports, amendments] = await Promise.all([
+    const [investigations, diagRows, fields, rx, reports, amendments] = await Promise.all([
+      this.db
+        .selectFrom('investigation_orders')
+        .select(['test_name', 'test_code'])
+        .where('visit_id', '=', visitId)
+        .orderBy('position')
+        .execute(),
       this.db
         .selectFrom('visit_diagnoses')
         .select(['kind', 'icd10_code', 'label'])
@@ -451,6 +457,7 @@ export class VisitsService {
       isSeed: v.is_seed,
       signedAt: v.signed_at?.toISOString() ?? null,
       diagnoses,
+      investigations: investigations.map((o) => ({ testName: o.test_name, testCode: o.test_code })),
       fields: consultFields,
       rxLines,
       labReports,
