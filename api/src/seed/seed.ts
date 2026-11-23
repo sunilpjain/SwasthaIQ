@@ -252,6 +252,8 @@ export async function clearTestVisits(db: Db): Promise<number> {
   return db.transaction().execute(async (trx) => {
     await sql`SET LOCAL swasthyaiq.allow_test_clear = 'on'`.execute(trx);
     await trx.deleteFrom('lab_reports').where('is_seed', '=', false).execute();
+    // The seed writes no amendments, so any amendment (even on a seed visit) was made in testing.
+    await trx.deleteFrom('visit_amendments').execute();
     const res = await trx.deleteFrom('visits').where('is_seed', '=', false).executeTakeFirst();
     return Number(res.numDeletedRows);
   });
