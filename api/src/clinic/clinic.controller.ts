@@ -6,7 +6,6 @@ import type {
   QueueEntry,
   QueueResetResult,
   UserSummary,
-  VisitDetail,
 } from '@swasthyaiq/shared';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
 import { Audit } from '../audit/audit.interceptor';
@@ -68,10 +67,5 @@ export class ClinicController {
   @Get('patients/:id/labs/:testCode/trend')
   trend(@Param('id', new ParseUUIDPipe()) id: string, @Param('testCode') testCode: string) {
     return this.clinic.labTrend(id, testCode);
-  }
-
-  @Get('visits/:id')
-  visit(@Param('id', new ParseUUIDPipe()) id: string): Promise<VisitDetail> {
-    return this.clinic.visit(id);
   }
 }

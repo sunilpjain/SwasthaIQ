@@ -130,9 +130,80 @@ export interface VisitSummary {
 }
 
 export interface VisitDetail extends VisitSummary {
+  /** ISO 8601; null while the visit is a draft. */
+  signedAt: string | null;
+  diagnoses: Diagnosis[];
   fields: ConsultField[];
   rxLines: RxLine[];
   labReports: LabReport[];
+  /** Additions made after signing, oldest first. The signed note itself never changes. */
+  amendments: VisitAmendment[];
+}
+
+/** ICD-10 coded, or "Misc" free text (21 Nov: ICD-10 only, Misc allowed). */
+export const DIAGNOSIS_KINDS = ['icd10', 'misc'] as const;
+export type DiagnosisKind = (typeof DIAGNOSIS_KINDS)[number];
+
+export interface Diagnosis {
+  kind: DiagnosisKind;
+  /** e.g. "K21.0"; null for Misc. */
+  icd10Code: string | null;
+  label: string;
+}
+
+/** ICD-10 code shape: letter, two digits, optional dot and 1–4 characters (e.g. K21.0, H40.1131). */
+export const ICD10_CODE_RE = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/;
+
+export interface ConsultFieldInput {
+  section: string;
+  key: string;
+  value: string;
+  source: CaptureSource;
+  confirmed: boolean;
+  /** Device time of the edit (ISO 8601). An older edit never overwrites a newer one. */
+  clientUpdatedAt: string;
+}
+
+/**
+ * Body of PUT /visits/:id (draft save). The app picks the visit id (a UUID) itself, so a save
+ * queued offline and retried is idempotent: the first call creates the draft, later calls update it.
+ * Fields are upserted by section + key; fields not sent are left as they are.
+ */
+export interface VisitDraftInput {
+  patientId: string;
+  fields?: ConsultFieldInput[];
+  /** Replaces the whole list when sent, unless an edit with a newer clientUpdatedAt is already stored. */
+  diagnoses?: Diagnosis[];
+  diagnosesClientUpdatedAt?: string;
+  /** ISO date, or null to clear. */
+  followUp?: string | null;
+}
+
+/** Body of POST /visits/:id/amendments. `id` is picked by the app so a retried call is idempotent. */
+export interface VisitAmendmentInput {
+  id: string;
+  reason: string;
+  fields?: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
+  diagnoses?: Diagnosis[];
+}
+
+export interface VisitAmendment {
+  id: string;
+  /** The signed note is version 1; each amendment adds one. */
+  version: number;
+  amendedBy: string;
+  amendedByName: string;
+  reason: string;
+  fields: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
+  diagnoses: Diagnosis[] | null;
+  createdAt: string;
+}
+
+/** Why a sign was refused (422 `sign_blocked`). */
+export interface SignProblem {
+  code: 'no_diagnosis' | 'unconfirmed_fields';
+  /** For unconfirmed_fields: "section.key" of each field still waiting for the doctor. */
+  fields?: string[];
 }
 
 export interface PatientDetail {

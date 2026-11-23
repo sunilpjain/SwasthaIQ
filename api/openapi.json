@@ -150,7 +150,7 @@
     },
     "/visits/{id}": {
       "get": {
-        "operationId": "ClinicController_visit",
+        "operationId": "VisitsController_visit",
         "parameters": [],
         "responses": {
           "200": {
@@ -163,7 +163,62 @@
           }
         ],
         "tags": [
-          "clinic"
+          "visits"
+        ]
+      },
+      "put": {
+        "operationId": "VisitsController_save",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{id}/sign": {
+      "post": {
+        "operationId": "VisitsController_sign",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{id}/amendments": {
+      "post": {
+        "operationId": "VisitsController_amend",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
         ]
       }
     },

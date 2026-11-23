@@ -63,6 +63,16 @@ export interface VisitsTable {
   signed_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
+  diagnoses_client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+}
+
+export interface VisitDiagnosesTable {
+  id: Generated<string>;
+  visit_id: string;
+  position: number;
+  kind: 'icd10' | 'misc';
+  icd10_code: string | null;
+  label: string;
 }
 
 export interface VisitAmendmentsTable {
@@ -87,6 +97,7 @@ export interface ConsultFieldsTable {
   original_language: 'en' | 'mr' | 'hi' | 'gu' | null;
   original_transcript: string | null;
   updated_at: Timestamp;
+  client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
 }
 
 export interface PrescriptionsTable {
@@ -184,6 +195,7 @@ export interface Database {
   patients: PatientsTable;
   queue_entries: QueueEntriesTable;
   visits: VisitsTable;
+  visit_diagnoses: VisitDiagnosesTable;
   visit_amendments: VisitAmendmentsTable;
   consult_fields: ConsultFieldsTable;
   prescriptions: PrescriptionsTable;
