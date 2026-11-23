@@ -45,7 +45,7 @@ export class AuditInterceptor implements NestInterceptor {
       this.reflector.get<string | undefined>(AUDIT_ACTION, ctx.getHandler()) ??
       `${req.method} ${req.route?.path ?? ''}`;
     const params = req.params ?? {};
-    const entityId = params.id ?? params.patientId ?? params.username ?? null;
+    const entityId = params.conditionId ?? params.id ?? params.patientId ?? params.username ?? null;
     const base = {
       userId: req.user?.id ?? null,
       username: req.user?.username ?? null,

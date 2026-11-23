@@ -1,65 +1,10 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  sortQueue,
-  type Patient,
-  type PatientDetail,
-  type QueueEntry,
-  type QueueResetResult,
-  type UserSummary,
-  type VisitSummary,
-} from '@swasthyaiq/shared';
+import { sortQueue, type QueueEntry, type QueueResetResult, type UserSummary } from '@swasthyaiq/shared';
 import { sql } from 'kysely';
 import { DB, type Db } from '../db/database';
 import { resetQueue } from '../seed/seed';
 import type { AuthUser } from '../auth/auth.decorators';
-import { currentVersion } from '../visits/visits.service';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function assertUuid(id: string, what: string): void {
-  if (!UUID_RE.test(id)) throw new NotFoundException({ code: 'not_found', message: `${what} not found` });
-}
-
-type PatientRow = {
-  id: string;
-  token: string;
-  full_name: string;
-  age_years: number;
-  sex: 'M' | 'F';
-  guardian_name: string | null;
-  phone: string | null;
-  primary_doctor_id: string;
-  allergies: string[];
-  conditions: string[];
-};
-
-function toPatient(r: PatientRow): Patient {
-  return {
-    id: r.id,
-    token: r.token,
-    fullName: r.full_name,
-    ageYears: r.age_years,
-    sex: r.sex,
-    guardianName: r.guardian_name,
-    phone: r.phone,
-    primaryDoctorId: r.primary_doctor_id,
-    allergies: r.allergies,
-    conditions: r.conditions,
-  };
-}
-
-const PATIENT_COLS = [
-  'patients.id',
-  'patients.token',
-  'patients.full_name',
-  'patients.age_years',
-  'patients.sex',
-  'patients.guardian_name',
-  'patients.phone',
-  'patients.primary_doctor_id',
-  'patients.allergies',
-  'patients.conditions',
-] as const;
+import { assertUuid, PATIENT_COLS, toPatient } from '../patients/patient-row';
 
 @Injectable()
 export class ClinicService {
@@ -147,87 +92,5 @@ export class ClinicService {
   /** Doctor's "Reset queue" button: same as the admin action and the 2 am job. */
   async resetQueue(): Promise<QueueResetResult> {
     return { reset: await resetQueue(this.db) };
-  }
-
-  async patient(patientId: string): Promise<PatientDetail> {
-    assertUuid(patientId, 'Patient');
-    const p = await this.db
-      .selectFrom('patients')
-      .select(PATIENT_COLS)
-      .where('id', '=', patientId)
-      .executeTakeFirst();
-    if (!p) throw new NotFoundException({ code: 'not_found', message: 'Patient not found' });
-    const visits = await this.visitSummaries(patientId);
-    return { patient: toPatient(p), visits };
-  }
-
-  async searchPatients(q: string): Promise<Patient[]> {
-    const term = q.trim();
-    if (term.length < 2) return [];
-    const like = `%${term.toLowerCase()}%`;
-    const rows = await this.db
-      .selectFrom('patients')
-      .select(PATIENT_COLS)
-      .where((eb) =>
-        eb.or([
-          eb(eb.fn('lower', ['patients.full_name']), 'like', like),
-          eb('patients.phone', 'like', `%${term}%`),
-          eb(eb.fn('lower', ['patients.token']), '=', term.toLowerCase()),
-        ]),
-      )
-      .orderBy('patients.token')
-      .limit(25)
-      .execute();
-    return rows.map(toPatient);
-  }
-
-  private async visitSummaries(patientId: string): Promise<VisitSummary[]> {
-    const rows = await this.db
-      .selectFrom('visits')
-      .innerJoin('users', 'users.id', 'visits.doctor_id')
-      .select([
-        'visits.id',
-        'visits.patient_id',
-        'visits.doctor_id',
-        'users.display_name',
-        'users.specialty',
-        'visits.visit_date',
-        'visits.status',
-        currentVersion.as('version'),
-        'visits.diagnosis',
-        'visits.is_seed',
-      ])
-      .where('visits.patient_id', '=', patientId)
-      .orderBy('visits.visit_date', 'desc')
-      .execute();
-    return rows.map((r) => ({
-      id: r.id,
-      patientId: r.patient_id,
-      doctorId: r.doctor_id,
-      doctorName: r.display_name,
-      doctorSpecialty: r.specialty,
-      visitDate: r.visit_date,
-      status: r.status,
-      version: Number(r.version),
-      diagnosis: r.diagnosis,
-      isSeed: r.is_seed,
-    }));
-  }
-
-  /** Values of one lab test across all of a patient's reports, oldest first (for trend lines). */
-  async labTrend(
-    patientId: string,
-    testCode: string,
-  ): Promise<{ date: string; value: string; unit: string | null }[]> {
-    assertUuid(patientId, 'Patient');
-    const rows = await this.db
-      .selectFrom('lab_values')
-      .innerJoin('lab_reports', 'lab_reports.id', 'lab_values.lab_report_id')
-      .select(['lab_reports.report_date', 'lab_values.value_text', 'lab_values.unit'])
-      .where('lab_reports.patient_id', '=', patientId)
-      .where('lab_values.test_code', '=', testCode.toUpperCase())
-      .orderBy('lab_reports.report_date', 'asc')
-      .execute();
-    return rows.map((r) => ({ date: r.report_date, value: r.value_text, unit: r.unit }));
   }
 }

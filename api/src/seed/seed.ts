@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
 import { dailySchedule } from '../clinic/queue-schedule';
 import type { Db } from '../db/database';
+import type { Database } from '../db/schema';
 import { SEED_PATIENTS, SEED_USERS, SEED_VISITS } from './seed-data';
 
 /** Deterministic UUID (v5-style, SHA-1) so the seed is idempotent across runs and environments. */
@@ -67,7 +68,6 @@ export async function seed(db: Db): Promise<SeedResult> {
           phone: p.phone,
           primary_doctor_id: userIds.get(p.doctor)!,
           allergies: p.allergies ?? [],
-          conditions: p.conditions ?? [],
           is_seed: true,
         })
         .onConflict((oc) => oc.column('token').doNothing())
@@ -78,6 +78,7 @@ export async function seed(db: Db): Promise<SeedResult> {
         (await trx.selectFrom('patients').select('id').where('token', '=', p.token).executeTakeFirstOrThrow())
           .id;
       patientIds.set(p.token, id);
+      await seedConditions(trx, id, p.conditions ?? []);
     }
 
     // Today's queue with fictitious times. Re-running the seed only refreshes the reason, so a
@@ -207,6 +208,19 @@ export async function seed(db: Db): Promise<SeedResult> {
         }
       }
 
+      let orderPos = 1;
+      for (const inv of v.investigations ?? []) {
+        await trx
+          .insertInto('investigation_orders')
+          .values({
+            visit_id: visitId,
+            position: orderPos++,
+            test_name: inv.name,
+            test_code: inv.code ?? null,
+          })
+          .execute();
+      }
+
       // Sign last: from here on the visit and its children are read-only.
       await trx
         .updateTable('visits')
@@ -217,6 +231,45 @@ export async function seed(db: Db): Promise<SeedResult> {
 
     return { users: userIds.size, patients: patientIds.size, visitsCreated };
   });
+}
+
+/** "X (past)" is seeded as X, resolved; anything else as active. Same rule as migration 004. */
+export function seedConditionRows(conditions: string[]): { name: string; status: 'active' | 'resolved' }[] {
+  return conditions.map((c) =>
+    /\(past\)$/.test(c)
+      ? { name: c.replace(/\s*\(past\)$/, ''), status: 'resolved' as const }
+      : { name: c, status: 'active' as const },
+  );
+}
+
+/** Adds a seed patient's conditions (with their first history row) unless already there. */
+async function seedConditions(
+  trx: Transaction<Database>,
+  patientId: string,
+  conditions: string[],
+): Promise<void> {
+  for (const c of seedConditionRows(conditions)) {
+    const row = await trx
+      .insertInto('patient_conditions')
+      .values({
+        patient_id: patientId,
+        name: c.name,
+        icd10_code: null,
+        status: c.status,
+        since: null,
+        is_seed: true,
+        updated_by: null,
+      })
+      .onConflict((oc) => oc.columns(['patient_id', 'name']).doNothing())
+      .returning('id')
+      .executeTakeFirst();
+    if (row) {
+      await trx
+        .insertInto('patient_condition_history')
+        .values({ condition_id: row.id, status: c.status, changed_by: null })
+        .execute();
+    }
+  }
 }
 
 /**

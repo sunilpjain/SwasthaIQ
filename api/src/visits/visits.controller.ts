@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put } from
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { VisitDetail } from '@swasthyaiq/shared';
 import { Audit } from '../audit/audit.interceptor';
+import { AuditService } from '../audit/audit.service';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
 import { parseAmendment, parseDraft } from './visit-input';
 import { VisitsService } from './visits.service';
@@ -12,11 +13,31 @@ import { VisitsService } from './visits.service';
 @Roles('doctor')
 @Controller('visits')
 export class VisitsController {
-  constructor(private readonly visits: VisitsService) {}
+  constructor(
+    private readonly visits: VisitsService,
+    private readonly audit: AuditService,
+  ) {}
 
+  /** Both doctors can read every visit (prototype rule); opening the other doctor's is audited. */
   @Get(':id')
-  visit(@Param('id', new ParseUUIDPipe()) id: string): Promise<VisitDetail> {
-    return this.visits.detail(id);
+  async visit(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<VisitDetail> {
+    const v = await this.visits.detail(id);
+    if (v.doctorId !== user.id) {
+      await this.audit.record({
+        userId: user.id,
+        username: user.username,
+        action: 'visit.read_other_doctor',
+        entityType: 'visit',
+        entityId: id,
+        httpMethod: 'GET',
+        path: '/visits/:id',
+        statusCode: 200,
+      });
+    }
+    return v;
   }
 
   /** Draft save. The app picks the visit id, so a retried save creates nothing twice. */

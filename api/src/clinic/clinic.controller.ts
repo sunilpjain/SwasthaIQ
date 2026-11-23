@@ -1,6 +1,6 @@
 import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Patient, PatientDetail, QueueEntry, QueueResetResult, UserSummary } from '@swasthyaiq/shared';
+import type { QueueEntry, QueueResetResult, UserSummary } from '@swasthyaiq/shared';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
 import { Audit } from '../audit/audit.interceptor';
 import { ClinicService } from './clinic.service';
@@ -46,20 +46,5 @@ export class ClinicController {
     @Query('force') force?: string,
   ): Promise<QueueEntry> {
     return this.clinic.openConsult(user, patientId, force === 'true');
-  }
-
-  @Get('patients')
-  search(@Query('q') q = ''): Promise<Patient[]> {
-    return this.clinic.searchPatients(q);
-  }
-
-  @Get('patients/:id')
-  patient(@Param('id', new ParseUUIDPipe()) id: string): Promise<PatientDetail> {
-    return this.clinic.patient(id);
-  }
-
-  @Get('patients/:id/labs/:testCode/trend')
-  trend(@Param('id', new ParseUUIDPipe()) id: string, @Param('testCode') testCode: string) {
-    return this.clinic.labTrend(id, testCode);
   }
 }
