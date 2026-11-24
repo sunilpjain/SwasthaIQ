@@ -137,6 +137,8 @@ export interface VisitSummary {
 export interface VisitDetail extends VisitSummary {
   /** ISO 8601; null while the visit is a draft. */
   signedAt: string | null;
+  /** ISO date of the planned follow-up, if set. */
+  followUp: string | null;
   diagnoses: Diagnosis[];
   investigations: InvestigationOrder[];
   fields: ConsultField[];
@@ -181,6 +183,9 @@ export interface VisitDraftInput {
   /** Replaces the whole list when sent, unless an edit with a newer clientUpdatedAt is already stored. */
   diagnoses?: Diagnosis[];
   diagnosesClientUpdatedAt?: string;
+  /** Tests ordered at this visit (DIG-50). Replaces the whole list, same rule as diagnoses. */
+  investigations?: InvestigationOrder[];
+  investigationsClientUpdatedAt?: string;
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
