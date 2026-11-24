@@ -33,8 +33,11 @@ function QueueRow({ row, onPress }: { row: RowModel; onPress: () => void }) {
     >
       <View style={[styles.strip, { backgroundColor: STATUS_COLOR[row.status] }]} />
       <View style={styles.time}>
-        <Text style={styles.appt}>{row.appointment}</Text>
-        <Text style={styles.apptLabel}>Appt</Text>
+        {/* "10:00 am": the digits stand out, am/pm is smaller. */}
+        <Text style={styles.appt}>
+          {row.appointment.split(' ')[0]}
+          <Text style={styles.ampm}> {row.appointment.split(' ')[1]}</Text>
+        </Text>
       </View>
       <View style={styles.body}>
         <View style={styles.titleLine}>
@@ -89,7 +92,7 @@ export function SkeletonRow() {
   return (
     <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={[styles.strip, { backgroundColor: colors.surface }]} />
-      <View style={[styles.bone, { width: 44, height: 20, marginRight: spacing.md }]} />
+      <View style={[styles.bone, { width: 64, height: 18, marginRight: spacing.md }]} />
       <View style={{ flex: 1, gap: spacing.sm }}>
         <View style={[styles.bone, { width: '60%' }]} />
         <View style={[styles.bone, { width: '85%' }]} />
@@ -100,27 +103,29 @@ export function SkeletonRow() {
 }
 
 const styles = StyleSheet.create({
+  // Compact rows (24 Nov feedback): about one more patient fits before scrolling.
+  // Body text stays at 16 sp (design-system minimum); the status line is a 14 sp label.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: MIN_TAP * 2,
-    paddingVertical: spacing.md,
-    paddingRight: spacing.md,
+    minHeight: MIN_TAP,
+    paddingVertical: 10,
+    paddingRight: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
     backgroundColor: colors.surface,
   },
-  strip: { width: 4, alignSelf: 'stretch', marginRight: spacing.md },
-  time: { width: 64 },
-  appt: { ...type.titleLarge, color: colors.onSurface },
-  apptLabel: { ...type.label, color: colors.onSurfaceVariant },
-  body: { flex: 1, gap: 2 },
+  strip: { width: 4, alignSelf: 'stretch', marginRight: spacing.sm + 4, marginVertical: -10 },
+  time: { width: 82 },
+  appt: { ...type.title, color: colors.onSurface },
+  ampm: { ...type.label, color: colors.onSurfaceVariant },
+  body: { flex: 1 },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { ...type.title, color: colors.onSurface, flexShrink: 1 },
+  title: { ...type.bodyStrong, color: colors.onSurface, flexShrink: 1 },
   tag: { ...type.label, marginLeft: 'auto' },
   reason: { ...type.body, color: colors.onSurfaceVariant },
-  statusLine: { ...type.body, color: colors.onSurfaceVariant },
-  status: { ...type.bodyStrong },
-  chevron: { fontSize: 28, color: colors.onSurfaceVariant, marginLeft: spacing.sm },
+  statusLine: { ...type.label, color: colors.onSurfaceVariant },
+  status: { ...type.label, fontWeight: '700' },
+  chevron: { fontSize: 24, color: colors.onSurfaceVariant, marginLeft: spacing.xs },
   bone: { height: 14, borderRadius: 4, backgroundColor: colors.surfaceContainerHigh },
 });

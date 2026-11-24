@@ -7,10 +7,12 @@ import type { QueueEntry, QueueStatus } from '@swasthyaiq/shared';
 
 export const IST_OFFSET_MS = 330 * 60 * 1000;
 
-/** "09:30" in IST from an ISO timestamp. */
+/** "9:30 am" / "12:15 pm" in IST from an ISO timestamp (12-hour, as the clinic says it). */
 export function istTime(iso: string): string {
   const d = new Date(Date.parse(iso) + IST_OFFSET_MS);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  const h = d.getUTCHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(d.getUTCMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
