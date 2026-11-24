@@ -23,7 +23,10 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Queue', tabBarIcon: icon('☰'), headerShown: false }} />
-      <Tabs.Screen name="patient" options={{ title: 'Patient', tabBarIcon: icon('👤') }} />
+      <Tabs.Screen
+        name="patient"
+        options={{ title: 'Patient', tabBarIcon: icon('👤'), headerShown: false }}
+      />
       <Tabs.Screen name="consult" options={{ title: 'Consult', tabBarIcon: icon('✎') }} />
       <Tabs.Screen name="rx" options={{ title: 'Rx', tabBarIcon: icon('℞') }} />
     </Tabs>

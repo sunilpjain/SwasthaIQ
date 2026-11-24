@@ -126,3 +126,23 @@ describe('ApiClient queue actions (DIG-47)', () => {
     expect(err.details).toEqual({ inConsultWithName: 'Dr. Saiyam Shah' });
   });
 });
+
+describe('ApiClient conditions (DIG-48)', () => {
+  it('adds a condition with a JSON body', async () => {
+    const f = fakeFetch(201, { id: 'c1', name: 'Asthma' });
+    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    await api.addCondition('p1', { name: 'Asthma', status: 'active' });
+    expect(f.calls[0]?.url).toBe('https://api.test/patients/p1/conditions');
+    expect(f.calls[0]?.init.method).toBe('POST');
+    expect(JSON.parse(f.calls[0]?.init.body as string)).toEqual({ name: 'Asthma', status: 'active' });
+    expect((f.calls[0]?.init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+  });
+
+  it('changes a condition status with PATCH', async () => {
+    const f = fakeFetch(200, { id: 'c1', status: 'resolved' });
+    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    await api.updateCondition('p1', 'c1', { status: 'resolved' });
+    expect(f.calls[0]?.url).toBe('https://api.test/patients/p1/conditions/c1');
+    expect(f.calls[0]?.init.method).toBe('PATCH');
+  });
+});
