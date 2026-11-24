@@ -3,6 +3,7 @@ import {
   counts,
   istDayLabel,
   istTime,
+  waitDuration,
   matches,
   rowModel,
   syncLine,
@@ -83,6 +84,32 @@ describe('queue view', () => {
     expect(rowModel(entry({ name: 'A', status: 'not_arrived', checkedInAt: null }), ME, 'mine').checkIn).toBe(
       'Not checked in',
     );
+  });
+
+  it('shows how long a Waiting patient has waited since check-in, from the phone clock', () => {
+    const now = new Date('2026-11-21T04:40:00.000Z'); // 10:10 am IST
+    const r = rowModel(
+      entry({ name: 'A', status: 'waiting', checkedInAt: '2026-11-21T04:22:00.000Z' }),
+      ME,
+      'mine',
+      now,
+    );
+    expect(r.statusLabel).toBe('Waiting 18 min');
+    expect(r.checkIn).toBe('in at 9:52 am');
+    expect(r.accessibilityLabel).toContain('Waiting 18 min');
+    // Only Waiting patients get a duration.
+    const inConsult = rowModel(
+      entry({ name: 'B', status: 'in_consult', inConsultWithUserId: ME }),
+      ME,
+      'mine',
+      now,
+    );
+    expect(inConsult.statusLabel).toBe('In consult');
+    expect(inConsult.checkIn).toBe('Checked in 9:21 am');
+    expect(waitDuration('2026-11-21T04:39:30.000Z', now)).toBe('<1 min');
+    expect(waitDuration('2026-11-21T03:35:00.000Z', now)).toBe('1 h 5 min');
+    expect(waitDuration('2026-11-21T02:40:00.000Z', now)).toBe('2 h');
+    expect(waitDuration('2026-11-21T05:00:00.000Z', now)).toBe('<1 min'); // phone clock behind: never negative
   });
 
   it('tags who has the patient open, and the booked doctor in the All view', () => {

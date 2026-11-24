@@ -71,7 +71,25 @@ export interface RowModel {
   accessibilityLabel: string;
 }
 
-export function rowModel(e: QueueEntry, myUserId: string | null, filter: QueueFilter): RowModel {
+/** "<1 min", "18 min", "1 h 5 min": how long since check-in, from the phone's own clock. */
+export function waitDuration(checkedInAt: string, now: Date): string {
+  const min = Math.max(0, Math.floor((now.getTime() - Date.parse(checkedInAt)) / 60_000));
+  if (min < 1) return '<1 min';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  return min % 60 ? `${h} h ${min % 60} min` : `${h} h`;
+}
+
+/**
+ * `now` drives the wait time for Waiting patients ("Waiting 18 min · in at 9:52 am"). It is
+ * worked out on the phone, so it stays right between server refreshes and while offline.
+ */
+export function rowModel(
+  e: QueueEntry,
+  myUserId: string | null,
+  filter: QueueFilter,
+  now = new Date(),
+): RowModel {
   const p = e.patient;
   const withMe = e.status === 'in_consult' && e.inConsultWithUserId === myUserId;
   const withOther = e.status === 'in_consult' && !withMe;
@@ -83,7 +101,13 @@ export function rowModel(e: QueueEntry, myUserId: string | null, filter: QueueFi
         ? e.doctorName
         : null;
   const appointment = istTime(e.appointmentAt);
-  const checkIn = e.checkedInAt ? `Checked in ${istTime(e.checkedInAt)}` : 'Not checked in';
+  const waiting = e.status === 'waiting' && e.checkedInAt !== null;
+  const statusLabel = waiting ? `Waiting ${waitDuration(e.checkedInAt!, now)}` : STATUS_LABEL[e.status];
+  const checkIn = e.checkedInAt
+    ? waiting
+      ? `in at ${istTime(e.checkedInAt)}`
+      : `Checked in ${istTime(e.checkedInAt)}`
+    : 'Not checked in';
   const title = `${p.fullName} · ${p.ageYears} ${p.sex}`;
   return {
     key: p.id,
@@ -91,12 +115,12 @@ export function rowModel(e: QueueEntry, myUserId: string | null, filter: QueueFi
     title,
     reason: e.reason,
     status: e.status,
-    statusLabel: STATUS_LABEL[e.status],
+    statusLabel,
     checkIn,
     tag,
     tagTone: withMe ? 'mine' : withOther ? 'other' : 'neutral',
     highlighted: withMe,
-    accessibilityLabel: [`${appointment} appointment`, title, e.reason, STATUS_LABEL[e.status], checkIn, tag]
+    accessibilityLabel: [`${appointment} appointment`, title, e.reason, statusLabel, checkIn, tag]
       .filter(Boolean)
       .join(', '),
   };
