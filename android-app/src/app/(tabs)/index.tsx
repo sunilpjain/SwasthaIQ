@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueueEntry } from '@swasthyaiq/shared';
-import { ApiError } from '../../api/client';
 import { api, useSession } from '../../auth/SessionProvider';
 import ProfileMenu from '../../components/ProfileMenu';
-import { QueueStore, type QueueState } from '../../queue/queue-store';
+import { openConsult } from '../../queue/open-consult';
+import { queueStore as store } from '../../queue/queue-instance';
+import type { QueueState } from '../../queue/queue-store';
 import QueueRow, { SkeletonRow } from '../../queue/QueueRow';
 import {
   counts,
@@ -27,8 +28,6 @@ import {
   type QueueFilter,
 } from '../../queue/queue-view';
 import { colors, MIN_TAP, radius, spacing, type } from '../../theme/tokens';
-
-const store = new QueueStore(api);
 
 /** Queue · Today (DIG-47, hi-fi screen 2 and states S1–S4). */
 export default function QueueScreen() {
@@ -71,32 +70,14 @@ export default function QueueScreen() {
   );
 
   const open = useCallback(
-    async (entry: QueueEntry, force = false) => {
+    async (entry: QueueEntry) => {
       if (tapAction(entry) === 'view') {
         goToPatient(entry.patient.id);
         return;
       }
       setOpening(entry.patient.id);
       try {
-        store.upsert(await api.openConsult(entry.patient.id, force));
-        goToPatient(entry.patient.id);
-      } catch (e) {
-        if (e instanceof ApiError && e.code === 'in_consult_with_other_doctor') {
-          const who =
-            typeof e.details.inConsultWithName === 'string' ? e.details.inConsultWithName : 'Another doctor';
-          Alert.alert(
-            `${who} has this patient open`,
-            'You can still open the patient. Both of you will be able to work on the same patient.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open anyway', onPress: () => void open(entry, true) },
-            ],
-          );
-        } else if (e instanceof ApiError && e.code === 'network') {
-          Alert.alert('No connection', 'The patient was not opened. Check the internet and try again.');
-        } else {
-          Alert.alert('Could not open the patient', 'Nothing was changed. Please try again.');
-        }
+        if (await openConsult(entry.patient.id)) goToPatient(entry.patient.id);
       } finally {
         setOpening(null);
       }

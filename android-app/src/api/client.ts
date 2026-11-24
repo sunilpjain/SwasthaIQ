@@ -1,6 +1,9 @@
 import type {
   HealthResponse,
   Patient,
+  PatientCondition,
+  PatientConditionInput,
+  PatientConditionUpdate,
   QueueResetResult,
   PatientDetail,
   QueueEntry,
@@ -68,12 +71,28 @@ export class ApiClient {
   patient(id: string): Promise<PatientDetail> {
     return this.request('GET', `/patients/${encodeURIComponent(id)}`);
   }
+  addCondition(patientId: string, input: PatientConditionInput): Promise<PatientCondition> {
+    return this.request('POST', `/patients/${encodeURIComponent(patientId)}/conditions`, true, input);
+  }
+  updateCondition(
+    patientId: string,
+    conditionId: string,
+    input: PatientConditionUpdate,
+  ): Promise<PatientCondition> {
+    return this.request(
+      'PATCH',
+      `/patients/${encodeURIComponent(patientId)}/conditions/${encodeURIComponent(conditionId)}`,
+      true,
+      input,
+    );
+  }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);
   }
 
-  private async request<T>(method: string, path: string, auth = true): Promise<T> {
+  private async request<T>(method: string, path: string, auth = true, body?: object): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
+    if (body) headers['Content-Type'] = 'application/json';
     if (auth) {
       const token = await this.getToken();
       if (!token) throw new ApiError(401, 'not_signed_in', 'Please sign in');
@@ -83,15 +102,20 @@ export class ApiClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let res: Response;
     try {
-      res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, signal: controller.signal });
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        signal: controller.signal,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
     } catch {
       throw new ApiError(0, 'network', 'Offline — will retry');
     } finally {
       clearTimeout(timer);
     }
-    const body: unknown = await res.json().catch(() => null);
+    const payload: unknown = await res.json().catch(() => null);
     if (!res.ok) {
-      const b = (body ?? {}) as { code?: string; message?: string } & Record<string, unknown>;
+      const b = (payload ?? {}) as { code?: string; message?: string } & Record<string, unknown>;
       if (res.status === 401 && b.code && SESSION_ENDING_CODES.has(b.code))
         await this.onSessionEnded?.(b.code);
       const { code, message, ...details } = b;
@@ -102,6 +126,6 @@ export class ApiClient {
         details,
       );
     }
-    return body as T;
+    return payload as T;
   }
 }
