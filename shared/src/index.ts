@@ -64,6 +64,10 @@ export interface QueueEntry {
   reason: string;
   status: QueueStatus;
   inConsultWithUserId: string | null;
+  /** Display name of the doctor who has the patient open, e.g. "Dr. Saiyam Shah". */
+  inConsultWithName: string | null;
+  /** The patient's own doctor (whose queue they are booked in). */
+  doctorName: string;
   /** Fictitious appointment time for today (ISO 8601), regenerated on every reset. */
   appointmentAt: string;
   /** Fictitious check-in time (ISO 8601); null while the patient has not arrived. */

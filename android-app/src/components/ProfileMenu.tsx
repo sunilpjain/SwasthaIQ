@@ -13,8 +13,23 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-/** Header button with the doctor's initials; opens the profile menu with Log out. */
-export default function ProfileMenu() {
+export interface MenuItem {
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+}
+
+/**
+ * The profile menu: doctor's name, any screen-specific items (e.g. Reset queue), Lock now and
+ * Log out. `variant="kebab"` draws ⋮ for the blue queue header; the default is the initials avatar.
+ */
+export default function ProfileMenu({
+  items = [],
+  variant = 'avatar',
+}: {
+  items?: MenuItem[];
+  variant?: 'avatar' | 'kebab';
+}) {
   const { me, state } = useSession();
   const [open, setOpen] = useState(false);
   const name = me?.displayName ?? (state.status === 'active' ? state.username : '');
@@ -37,27 +52,44 @@ export default function ProfileMenu() {
     );
   }
 
+  const all: MenuItem[] = [
+    ...items,
+    { label: 'Lock now', onPress: () => session.lock() },
+    { label: 'Log out', onPress: confirmLogout, destructive: true },
+  ];
+
   return (
     <>
       <Pressable
-        style={styles.avatar}
+        style={variant === 'avatar' ? styles.avatar : styles.kebab}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel="Profile and log out"
+        accessibilityLabel="Menu: profile and log out"
       >
-        <Text style={styles.avatarText}>{initials(name) || '?'}</Text>
+        <Text style={variant === 'avatar' ? styles.avatarText : styles.kebabText}>
+          {variant === 'avatar' ? initials(name) || '?' : '⋮'}
+        </Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close menu">
           <View style={styles.sheet}>
             <Text style={styles.name}>{name}</Text>
             {me?.qualifications ? <Text style={styles.detail}>{me.qualifications}</Text> : null}
-            <Pressable style={styles.item} onPress={() => session.lock()} accessibilityRole="button">
-              <Text style={styles.itemText}>Lock now</Text>
-            </Pressable>
-            <Pressable style={styles.item} onPress={confirmLogout} accessibilityRole="button">
-              <Text style={[styles.itemText, { color: colors.error }]}>Log out</Text>
-            </Pressable>
+            {all.map((item) => (
+              <Pressable
+                key={item.label}
+                style={styles.item}
+                onPress={() => {
+                  if (!item.destructive) setOpen(false);
+                  item.onPress();
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.itemText, item.destructive && { color: colors.error }]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </Pressable>
       </Modal>
@@ -76,6 +108,8 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   avatarText: { ...type.labelLarge, color: colors.onPrimaryContainer },
+  kebab: { width: MIN_TAP, height: MIN_TAP, alignItems: 'center', justifyContent: 'center' },
+  kebabText: { fontSize: 24, lineHeight: 28, color: colors.onPrimary, fontWeight: '700' },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.32)',

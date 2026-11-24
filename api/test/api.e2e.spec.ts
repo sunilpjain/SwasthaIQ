@@ -91,6 +91,9 @@ describe('API integration (real PostgreSQL)', () => {
       const q = res.body as QueueEntry[];
       expect(q).toHaveLength(12);
       expect(q.slice(0, 6).every((e) => e.isMine)).toBe(true);
+      expect(q.slice(0, 6).every((e) => e.doctorName === 'Dr. Samradnyee Shah')).toBe(true);
+      expect(q.slice(6).every((e) => e.doctorName === 'Dr. Saiyam Shah')).toBe(true);
+      expect(q.every((e) => e.inConsultWithName === null)).toBe(true);
       expect(q.map((e) => e.patient.token)).toEqual([
         'E1',
         'E2',
@@ -135,11 +138,15 @@ describe('API integration (real PostgreSQL)', () => {
     it('opening a patient sets In consult; a second doctor gets a warning, not a lock', async () => {
       const r1 = await http().post(`/queue/${G3}/open`).set('Authorization', `Bearer ${saiyam}`).expect(201);
       expect(r1.body.status).toBe('in_consult');
+      expect(r1.body.inConsultWithName).toBe('Dr. Saiyam Shah');
       const r2 = await http()
         .post(`/queue/${G3}/open`)
         .set('Authorization', `Bearer ${samradnyee}`)
         .expect(409);
-      expect(r2.body.code).toBe('in_consult_with_other_doctor');
+      expect(r2.body).toMatchObject({
+        code: 'in_consult_with_other_doctor',
+        inConsultWithName: 'Dr. Saiyam Shah',
+      });
       const r3 = await http()
         .post(`/queue/${G3}/open?force=true`)
         .set('Authorization', `Bearer ${samradnyee}`)

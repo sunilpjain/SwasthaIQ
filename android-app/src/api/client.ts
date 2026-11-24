@@ -1,6 +1,7 @@
 import type {
   HealthResponse,
   Patient,
+  QueueResetResult,
   PatientDetail,
   QueueEntry,
   UserSummary,
@@ -13,6 +14,8 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    /** Extra fields from the error body, e.g. inConsultWithName on a 409. Never logged. */
+    public readonly details: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -55,6 +58,10 @@ export class ApiClient {
   openConsult(patientId: string, force = false): Promise<QueueEntry> {
     return this.request('POST', `/queue/${encodeURIComponent(patientId)}/open${force ? '?force=true' : ''}`);
   }
+  /** Doctor's "Reset queue": everyone back to Waiting with fresh times. Never deletes visits. */
+  resetQueue(): Promise<QueueResetResult> {
+    return this.request('POST', '/queue/reset');
+  }
   searchPatients(q: string): Promise<Patient[]> {
     return this.request('GET', `/patients?q=${encodeURIComponent(q)}`);
   }
@@ -84,10 +91,16 @@ export class ApiClient {
     }
     const body: unknown = await res.json().catch(() => null);
     if (!res.ok) {
-      const b = (body ?? {}) as { code?: string; message?: string };
+      const b = (body ?? {}) as { code?: string; message?: string } & Record<string, unknown>;
       if (res.status === 401 && b.code && SESSION_ENDING_CODES.has(b.code))
         await this.onSessionEnded?.(b.code);
-      throw new ApiError(res.status, b.code ?? `http_${res.status}`, b.message ?? 'Something went wrong');
+      const { code, message, ...details } = b;
+      throw new ApiError(
+        res.status,
+        code ?? `http_${res.status}`,
+        message ?? 'Something went wrong',
+        details,
+      );
     }
     return body as T;
   }

@@ -104,3 +104,25 @@ describe('ApiClient session end (DIG-43)', () => {
     expect(ended).toEqual([]);
   });
 });
+
+describe('ApiClient queue actions (DIG-47)', () => {
+  it('resets the queue', async () => {
+    const f = fakeFetch(200, { reset: 12 });
+    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    await expect(api.resetQueue()).resolves.toEqual({ reset: 12 });
+    expect(f.calls[0]?.init.method).toBe('POST');
+    expect(f.calls[0]?.url).toBe('https://api.test/queue/reset');
+  });
+
+  it('passes the other doctor’s name from a 409 through as details', async () => {
+    const f = fakeFetch(409, {
+      code: 'in_consult_with_other_doctor',
+      message: 'Another doctor has this patient open',
+      inConsultWithName: 'Dr. Saiyam Shah',
+    });
+    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    const err = (await api.openConsult('p1').catch((x: unknown) => x)) as ApiError;
+    expect(err.code).toBe('in_consult_with_other_doctor');
+    expect(err.details).toEqual({ inConsultWithName: 'Dr. Saiyam Shah' });
+  });
+});

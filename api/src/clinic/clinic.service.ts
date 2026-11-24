@@ -31,6 +31,8 @@ export class ClinicService {
     const rows = await this.db
       .selectFrom('queue_entries')
       .innerJoin('patients', 'patients.id', 'queue_entries.patient_id')
+      .innerJoin('users as primary_doctor', 'primary_doctor.id', 'patients.primary_doctor_id')
+      .leftJoin('users as consult_doctor', 'consult_doctor.id', 'queue_entries.in_consult_with')
       .select([
         ...PATIENT_COLS,
         'queue_entries.reason',
@@ -38,6 +40,8 @@ export class ClinicService {
         'queue_entries.in_consult_with',
         'queue_entries.appointment_at',
         'queue_entries.checked_in_at',
+        'primary_doctor.display_name as doctor_name',
+        'consult_doctor.display_name as in_consult_with_name',
       ])
       .execute();
     return sortQueue(
@@ -46,6 +50,8 @@ export class ClinicService {
         reason: r.reason,
         status: r.status,
         inConsultWithUserId: r.in_consult_with,
+        inConsultWithName: r.in_consult_with_name,
+        doctorName: r.doctor_name,
         appointmentAt: r.appointment_at.toISOString(),
         checkedInAt: r.checked_in_at?.toISOString() ?? null,
         isMine: r.primary_doctor_id === user.id,
@@ -62,8 +68,9 @@ export class ClinicService {
     assertUuid(patientId, 'Patient');
     const entry = await this.db
       .selectFrom('queue_entries')
-      .select(['status', 'in_consult_with'])
-      .where('patient_id', '=', patientId)
+      .leftJoin('users', 'users.id', 'queue_entries.in_consult_with')
+      .select(['queue_entries.status', 'queue_entries.in_consult_with', 'users.display_name'])
+      .where('queue_entries.patient_id', '=', patientId)
       .executeTakeFirst();
     if (!entry) throw new NotFoundException({ code: 'not_found', message: 'Patient not in queue' });
     if (entry.status === 'in_consult' && entry.in_consult_with !== user.id && !force) {
@@ -71,6 +78,7 @@ export class ClinicService {
         code: 'in_consult_with_other_doctor',
         message: 'Another doctor has this patient open',
         inConsultWithUserId: entry.in_consult_with,
+        inConsultWithName: entry.display_name,
       });
     }
     await this.db
