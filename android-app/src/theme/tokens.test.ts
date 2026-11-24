@@ -24,6 +24,12 @@ const textPairs: [keyof typeof colors, keyof typeof colors][] = [
   ['onPrimaryContainer', 'primaryContainer'],
   ['onPrimary', 'primaryDark'],
   ['onSecondary', 'secondary'],
+  // Queue rows (DIG-47): status text on white, and on the highlighted "With you" row.
+  ['secondary', 'surface'],
+  // Blue text on the highlighted row uses primaryDark: primary is only 6.7:1 there.
+  ['primaryDark', 'primaryContainer'],
+  ['onSurface', 'primaryContainer'],
+  ['onSurfaceVariant', 'primaryContainer'],
   ['onSecondaryContainer', 'secondaryContainer'],
   ['onInfoContainer', 'infoContainer'],
   ['info', 'surface'],
