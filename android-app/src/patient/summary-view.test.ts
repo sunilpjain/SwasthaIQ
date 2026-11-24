@@ -132,8 +132,8 @@ describe('patient summary view', () => {
   });
 
   it('builds the header status line', () => {
-    expect(visitStatusLine('09:45', '09:37')).toBe('Appt 09:45 · checked in 09:37');
-    expect(visitStatusLine('10:45', null)).toBe('Appt 10:45 · not checked in');
+    expect(visitStatusLine('9:45 am', '9:37 am')).toBe('Appt 9:45 am · checked in 9:37 am');
+    expect(visitStatusLine('10:45 am', null)).toBe('Appt 10:45 am · not checked in');
     expect(visitStatusLine(null, null)).toBeNull();
   });
 });

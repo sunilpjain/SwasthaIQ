@@ -37,6 +37,12 @@ export default function QueueScreen() {
   const [filter, setFilter] = useState<QueueFilter>('mine');
   const [query, setQuery] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
+  // Ticks every 30 s so wait times count up between server refreshes (and while offline).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => store.subscribe(setState), []);
 
@@ -59,9 +65,9 @@ export default function QueueScreen() {
     () =>
       visibleEntries(state.entries, filter, query).map((e) => ({
         entry: e,
-        row: rowModel(e, me?.id ?? null, filter),
+        row: rowModel(e, me?.id ?? null, filter, now),
       })),
-    [state.entries, filter, query, me?.id],
+    [state.entries, filter, query, me?.id, now],
   );
 
   const goToPatient = useCallback(
@@ -257,13 +263,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingLeft: spacing.md,
+    paddingVertical: 6,
   },
-  headerTitle: { ...type.headline, color: colors.onPrimary },
+  headerTitle: { ...type.titleLarge, color: colors.onPrimary },
   headerSub: { ...type.label, color: colors.onPrimary },
   controls: {
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm + 4,
+    paddingBottom: spacing.sm,
     gap: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.outlineVariant,
