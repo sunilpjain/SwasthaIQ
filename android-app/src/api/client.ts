@@ -9,6 +9,7 @@ import type {
   QueueEntry,
   UserSummary,
   VisitDetail,
+  VisitDraftInput,
 } from '@swasthyaiq/shared';
 
 /** Error codes the API returns in `{ code }`; the app maps them to messages and actions. */
@@ -85,6 +86,10 @@ export class ApiClient {
       true,
       input,
     );
+  }
+  /** Draft save (DIG-41): the app picks the visit id, so a retried save creates nothing twice. */
+  saveDraft(visitId: string, input: VisitDraftInput): Promise<VisitDetail> {
+    return this.request('PUT', `/visits/${encodeURIComponent(visitId)}`, true, input);
   }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);

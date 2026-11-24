@@ -330,7 +330,7 @@ describe('migration 004 on a database that already has data', () => {
         db,
       );
 
-      expect(await migrate(db)).toEqual(['004_patient_history.sql']);
+      expect((await migrate(db))[0]).toBe('004_patient_history.sql'); // later migrations may follow
 
       const conditions = await sql<{ name: string; status: string; is_seed: boolean }>`
         SELECT name, status, is_seed FROM patient_conditions ORDER BY name`.execute(db);

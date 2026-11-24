@@ -98,6 +98,11 @@ export interface VisitsTable {
     Date | string | null | undefined,
     Date | string | null
   >;
+  investigations_client_updated_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null
+  >;
 }
 
 export interface VisitDiagnosesTable {

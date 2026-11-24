@@ -6,6 +6,7 @@ import {
   type CaptureSource,
   type ConsultFieldInput,
   type Diagnosis,
+  type InvestigationOrder,
   type VisitAmendmentInput,
   type VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -25,7 +26,11 @@ export const LIMITS = {
   diagnoses: 20,
   labelChars: 300,
   reasonChars: 500,
+  investigations: 30,
+  testNameChars: 120,
 } as const;
+
+const TEST_CODE_RE = /^[A-Z0-9_]{1,20}$/;
 
 function bad(path: string, problem: string): never {
   throw new BadRequestException({ code: 'invalid_body', message: `${path} ${problem}` });
@@ -130,6 +135,18 @@ export function parseDiagnoses(v: unknown, path: string): Diagnosis[] {
   });
 }
 
+export function parseInvestigations(v: unknown, path: string): InvestigationOrder[] {
+  return array(v, path, LIMITS.investigations).map((o, i) => {
+    const p = `${path}[${i}]`;
+    if (!isObject(o)) bad(p, 'must be an object');
+    const testName = str(o, 'testName', p, LIMITS.testNameChars).trim();
+    if (o.testCode === undefined || o.testCode === null) return { testName, testCode: null };
+    const code = typeof o.testCode === 'string' ? o.testCode.trim().toUpperCase() : '';
+    if (!TEST_CODE_RE.test(code)) bad(`${p}.testCode`, 'must be a lab test code such as ALT or HBA1C');
+    return { testName, testCode: code };
+  });
+}
+
 export function parseDraft(body: unknown): VisitDraftInput {
   if (!isObject(body)) bad('body', 'must be a JSON object');
   if (typeof body.patientId !== 'string' || !UUID_RE.test(body.patientId)) bad('patientId', 'must be a UUID');
@@ -144,6 +161,15 @@ export function parseDraft(body: unknown): VisitDraftInput {
     out.diagnosesClientUpdatedAt = timestamp(body.diagnosesClientUpdatedAt, 'diagnosesClientUpdatedAt');
   } else if (body.diagnosesClientUpdatedAt !== undefined) {
     bad('diagnosesClientUpdatedAt', 'is only allowed with diagnoses');
+  }
+  if (body.investigations !== undefined) {
+    out.investigations = parseInvestigations(body.investigations, 'investigations');
+    out.investigationsClientUpdatedAt = timestamp(
+      body.investigationsClientUpdatedAt,
+      'investigationsClientUpdatedAt',
+    );
+  } else if (body.investigationsClientUpdatedAt !== undefined) {
+    bad('investigationsClientUpdatedAt', 'is only allowed with investigations');
   }
   if (body.followUp !== undefined) {
     out.followUp = body.followUp === null ? null : isoDate(body.followUp, 'followUp');

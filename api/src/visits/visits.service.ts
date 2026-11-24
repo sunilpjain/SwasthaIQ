@@ -171,6 +171,32 @@ export class VisitsService {
           }
         }
 
+        if (input.investigations && input.investigationsClientUpdatedAt) {
+          const at = clampToNow(input.investigationsClientUpdatedAt, now);
+          const stored = v.investigations_client_updated_at;
+          if (!stored || stored.getTime() <= at.getTime()) {
+            await trx.deleteFrom('investigation_orders').where('visit_id', '=', visitId).execute();
+            if (input.investigations.length) {
+              await trx
+                .insertInto('investigation_orders')
+                .values(
+                  input.investigations.map((o, i) => ({
+                    visit_id: visitId,
+                    position: i + 1,
+                    test_name: o.testName,
+                    test_code: o.testCode,
+                  })),
+                )
+                .execute();
+            }
+            await trx
+              .updateTable('visits')
+              .set({ investigations_client_updated_at: at })
+              .where('id', '=', visitId)
+              .execute();
+          }
+        }
+
         if (input.followUp !== undefined) {
           await trx
             .updateTable('visits')
@@ -320,6 +346,7 @@ export class VisitsService {
         'visits.icd10_code',
         'visits.is_seed',
         'visits.signed_at',
+        'visits.follow_up',
         currentVersion.as('version'),
       ])
       .where('visits.id', '=', visitId)
@@ -456,6 +483,7 @@ export class VisitsService {
       diagnosis: v.diagnosis,
       isSeed: v.is_seed,
       signedAt: v.signed_at?.toISOString() ?? null,
+      followUp: v.follow_up,
       diagnoses,
       investigations: investigations.map((o) => ({ testName: o.test_name, testCode: o.test_code })),
       fields: consultFields,
@@ -468,7 +496,15 @@ export class VisitsService {
   private async lockVisit(trx: Trx, visitId: string) {
     const v = await trx
       .selectFrom('visits')
-      .select(['id', 'patient_id', 'doctor_id', 'status', 'version', 'diagnoses_client_updated_at'])
+      .select([
+        'id',
+        'patient_id',
+        'doctor_id',
+        'status',
+        'version',
+        'diagnoses_client_updated_at',
+        'investigations_client_updated_at',
+      ])
       .where('id', '=', visitId)
       .forUpdate()
       .executeTakeFirst();

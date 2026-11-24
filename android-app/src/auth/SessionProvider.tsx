@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { AppState, View } from 'react-native';
 import type { UserSummary } from '@swasthyaiq/shared';
 import { ApiClient } from '../api/client';
+import { clearDrafts } from '../consult/draft-registry';
 import { env } from '../config/env';
 import { CognitoClient } from './cognito';
 import { deviceBiometrics, secureStore } from './device';
@@ -12,6 +13,8 @@ export const session = new SessionManager({
   cognito: new CognitoClient(env.cognito),
   store: secureStore,
   biometrics: deviceBiometrics,
+  // Log out and remote sign-out wipe what this phone holds about patients.
+  wipe: async () => clearDrafts(),
 });
 
 export const api = new ApiClient(

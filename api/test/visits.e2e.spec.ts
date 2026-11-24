@@ -316,4 +316,45 @@ describe('visits and consult note (DIG-41)', () => {
       await http().get(`/visits/${V1}`).set('Authorization', `Bearer ${saiyam}`).expect(404);
     });
   });
+
+  describe('investigations and follow-up on the draft (DIG-50)', () => {
+    const V3 = 'a1b2c3d4-0000-4000-8000-000000000003';
+    const G5 = seedUuid('patient:G5');
+
+    it('saves the ordered tests and the follow-up date, and returns them with the visit', async () => {
+      const res = await put(V3, saiyam, {
+        patientId: G5,
+        investigations: [{ testName: 'USG abdomen' }, { testName: 'Liver function tests', testCode: 'alt' }],
+        investigationsClientUpdatedAt: T1,
+        followUp: '2026-12-08',
+      }).expect(200);
+      expect(res.body.investigations).toEqual([
+        { testName: 'USG abdomen', testCode: null },
+        { testName: 'Liver function tests', testCode: 'ALT' },
+      ]);
+      expect(res.body.followUp).toBe('2026-12-08');
+    });
+
+    it('keeps the newest list when offline saves arrive out of order, and can clear it', async () => {
+      await put(V3, saiyam, {
+        patientId: G5,
+        investigations: [{ testName: 'CBC', testCode: 'HB' }],
+        investigationsClientUpdatedAt: T2,
+      }).expect(200);
+      const stale = await put(V3, saiyam, {
+        patientId: G5,
+        investigations: [],
+        investigationsClientUpdatedAt: T0,
+        followUp: null,
+      }).expect(200);
+      expect(stale.body.investigations).toEqual([{ testName: 'CBC', testCode: 'HB' }]);
+      expect(stale.body.followUp).toBeNull();
+      const cleared = await put(V3, saiyam, {
+        patientId: G5,
+        investigations: [],
+        investigationsClientUpdatedAt: new Date().toISOString(),
+      }).expect(200);
+      expect(cleared.body.investigations).toEqual([]);
+    });
+  });
 });

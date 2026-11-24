@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { LIMITS, parseAmendment, parseDiagnoses, parseDraft } from './visit-input';
+import { LIMITS, parseAmendment, parseDiagnoses, parseDraft, parseInvestigations } from './visit-input';
 import { clampToNow, istToday } from './visits.service';
 
 const PATIENT = '11111111-1111-4111-8111-111111111111';
@@ -134,6 +134,50 @@ describe('parseDiagnoses', () => {
     expect(parseDiagnoses([{ kind: 'icd10', icd10Code: 'H40.1131', label: 'POAG' }], 'd')[0]!.icd10Code).toBe(
       'H40.1131',
     );
+  });
+});
+
+describe('parseInvestigations (DIG-50)', () => {
+  it('accepts tests with or without a lab code, and upper-cases the code', () => {
+    expect(
+      parseInvestigations(
+        [
+          { testName: ' Liver function tests ', testCode: 'alt' },
+          { testName: 'USG abdomen' },
+          { testName: 'ECG', testCode: null },
+        ],
+        'investigations',
+      ),
+    ).toEqual([
+      { testName: 'Liver function tests', testCode: 'ALT' },
+      { testName: 'USG abdomen', testCode: null },
+      { testName: 'ECG', testCode: null },
+    ]);
+  });
+
+  it.each<[string, unknown, RegExp]>([
+    ['not an array', {}, /must be an array/],
+    ['not an object', ['LFT'], /\[0\] must be an object/],
+    ['no name', [{ testName: ' ' }], /testName must not be empty/],
+    ['bad code', [{ testName: 'LFT', testCode: 'A-1' }], /testCode must be a lab test code/],
+  ])('rejects %s', (_name, v, re) => {
+    expect(message(() => parseInvestigations(v, 'investigations'))).toMatch(re);
+  });
+
+  it('needs a device time with the list, and only with the list', () => {
+    expect(message(() => parseDraft({ patientId: PATIENT, investigations: [] }))).toMatch(
+      /^investigationsClientUpdatedAt/,
+    );
+    expect(message(() => parseDraft({ patientId: PATIENT, investigationsClientUpdatedAt: AT }))).toMatch(
+      /only allowed with investigations/,
+    );
+    expect(
+      parseDraft({
+        patientId: PATIENT,
+        investigations: [{ testName: 'CBC', testCode: 'HB' }],
+        investigationsClientUpdatedAt: AT,
+      }).investigations,
+    ).toEqual([{ testName: 'CBC', testCode: 'HB' }]);
   });
 });
 
