@@ -79,7 +79,7 @@ describe('patient summary view', () => {
   it('lists current medicines from both doctors, mine first, with the eye for drops', () => {
     expect(
       medicineLine(line({ medicineGeneric: 'carboxymethylcellulose 0.5%', eye: 'BE', frequency: '1-1-1-1' })),
-    ).toBe('Carboxymethylcellulose 0.5% BE · 1-1-1-1');
+    ).toBe('Carboxymethylcellulose 0.5% OU · 1-1-1-1'); // stored as BE, shown as OU
     const rows = currentMedicineRows(
       [
         rx({ doctorId: SAIYAM, doctorName: 'Dr. Saiyam Shah', lines: [line({ id: 'a' })] }),
