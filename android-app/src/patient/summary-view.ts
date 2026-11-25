@@ -7,6 +7,7 @@ import type {
   RxLine,
   VisitSummary,
 } from '@swasthyaiq/shared';
+import { eyeLabel } from '../consult/eye-fields';
 
 /** Pure helpers for the patient summary (DIG-48). Dates are ISO (YYYY-MM-DD), shown as "14 Aug". */
 
@@ -50,9 +51,13 @@ export const CONDITION_STATUS_LABEL: Record<ConditionStatus, string> = {
 
 const capitalise = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-/** "Ursodeoxycholic acid 300 mg · 1-0-1", eye drops get the eye: "Carboxymethylcellulose 0.5% BE · 1-1-1-1". */
+/**
+ * "Ursodeoxycholic acid 300 mg · 1-0-1"; eye drops get the eye, always as OD / OS / OU (DIG-52):
+ * "Carboxymethylcellulose 0.5% OU · 1-1-1-1".
+ */
 export function medicineLine(l: RxLine): string {
-  return `${capitalise(l.medicineGeneric)}${l.eye ? ` ${l.eye}` : ''} · ${l.frequency}`;
+  const eye = eyeLabel(l.eye);
+  return `${capitalise(l.medicineGeneric)}${eye ? ` ${eye}` : ''} · ${l.frequency}`;
 }
 
 export interface MedicineRow {

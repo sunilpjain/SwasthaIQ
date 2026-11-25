@@ -32,7 +32,19 @@ import {
 } from '../../consult/consult-fields';
 import { getDraft, keepDraft } from '../../consult/draft-registry';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
+import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
+import { addEyeTag } from '../../consult/eye-fields';
+import {
+  DilatationCard,
+  ExamCard,
+  EyeTagChips,
+  IopCard,
+  PhotosCard,
+  PurposeCard,
+  SurgeryCard,
+  VisionCard,
+} from '../../consult/EyeSections';
 import FieldBox, { SourceBadge } from '../../consult/FieldBox';
 import Card, { cardStyles } from '../../patient/Card';
 import { queueStore } from '../../queue/queue-instance';
@@ -144,6 +156,7 @@ export default function ConsultScreen() {
     (t) => !tests.some((c) => c.testName.toLowerCase() === t.testName.toLowerCase()),
   );
   const generalExam = d.value(FIELD.generalExam);
+  const eye = specialty === 'eye';
 
   const text = (key: string, label: string, placeholder?: string) => (
     <FieldBox
@@ -154,6 +167,37 @@ export default function ConsultScreen() {
       placeholder={placeholder}
       editable={!readOnly}
     />
+  );
+
+  const vitalsCard = (
+    <Card title="Vitals">
+      <View style={styles.vitals}>
+        {VITALS.map((v) => {
+          const value = d.value(v.key);
+          const warning = vitalWarning(v.key, value);
+          return (
+            <View key={v.key} style={[styles.vital, warning && { borderColor: colors.warning }]}>
+              <Text style={styles.vitalLabel}>
+                {v.label} <Text style={styles.vitalUnit}>{v.unit}</Text>
+              </Text>
+              <TextInput
+                style={styles.vitalInput}
+                value={value}
+                onChangeText={(t) => d.setField(v.key, t)}
+                keyboardType={v.keyboard}
+                maxLength={v.maxLength}
+                placeholder={v.placeholder}
+                placeholderTextColor={colors.onSurfaceVariant}
+                editable={!readOnly}
+                accessibilityLabel={`${v.label} in ${v.unit}`}
+              />
+              {warning ? <Text style={styles.vitalWarning}>{warning}</Text> : null}
+            </View>
+          );
+        })}
+      </View>
+      {Object.keys(state.fields).some((k) => k.startsWith('vitals.')) ? <SourceBadge source="typed" /> : null}
+    </Card>
   );
 
   return (
@@ -194,11 +238,21 @@ export default function ConsultScreen() {
           {saveStatusLine(state, istTime)} · Dictate and Scan arrive in Sprint 3
         </Text>
 
-        <Card title="Chief complaint & history">
+        {eye ? <PurposeCard d={d} readOnly={readOnly} /> : null}
+
+        <Card title={eye ? 'Main complaints & history' : 'Chief complaint & history'}>
+          {eye ? (
+            <EyeTagChips
+              readOnly={readOnly}
+              onTag={(tag) => d.setField(FIELD.complaint, addEyeTag(d.value(FIELD.complaint), tag))}
+            />
+          ) : null}
           {text(
             FIELD.complaint,
-            'Complaint and history',
-            'What brings the patient, since when, how it has changed',
+            eye ? 'Complaint and history (per eye)' : 'Complaint and history',
+            eye
+              ? 'OS: blurred vision for 6 months, gradual, worsening'
+              : 'What brings the patient, since when, how it has changed',
           )}
         </Card>
 
@@ -216,65 +270,44 @@ export default function ConsultScreen() {
           )}
         </Card>
 
-        <Card title="Vitals">
-          <View style={styles.vitals}>
-            {VITALS.map((v) => {
-              const value = d.value(v.key);
-              const warning = vitalWarning(v.key, value);
-              return (
-                <View key={v.key} style={[styles.vital, warning && { borderColor: colors.warning }]}>
-                  <Text style={styles.vitalLabel}>
-                    {v.label} <Text style={styles.vitalUnit}>{v.unit}</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.vitalInput}
-                    value={value}
-                    onChangeText={(t) => d.setField(v.key, t)}
-                    keyboardType={v.keyboard}
-                    maxLength={v.maxLength}
-                    placeholder={v.placeholder}
-                    placeholderTextColor={colors.onSurfaceVariant}
-                    editable={!readOnly}
-                    accessibilityLabel={`${v.label} in ${v.unit}`}
+        {!eye ? vitalsCard : null}
+
+        {eye ? (
+          <>
+            <VisionCard d={d} readOnly={readOnly} />
+            <IopCard d={d} readOnly={readOnly} />
+            <ExamCard d={d} readOnly={readOnly} />
+            <DilatationCard d={d} readOnly={readOnly} />
+            <PhotosCard />
+          </>
+        ) : (
+          <>
+            <Card title="General examination">
+              <Text style={styles.chipLabel}>Tap to add</Text>
+              <View style={styles.chips}>
+                {GENERAL_EXAM_CHIPS.map((c) => (
+                  <Chip
+                    key={c}
+                    label={c}
+                    selected={hasPhrase(generalExam, c)}
+                    disabled={readOnly}
+                    onPress={() => d.setField(FIELD.generalExam, appendPhrase(generalExam, c))}
                   />
-                  {warning ? <Text style={styles.vitalWarning}>{warning}</Text> : null}
-                </View>
-              );
-            })}
-          </View>
-          {Object.keys(state.fields).some((k) => k.startsWith('vitals.')) ? (
-            <SourceBadge source="typed" />
-          ) : null}
-        </Card>
+                ))}
+              </View>
+              {text(FIELD.generalExam, 'General examination notes')}
+            </Card>
 
-        <Card title="General examination">
-          <Text style={styles.chipLabel}>Tap to add</Text>
-          <View style={styles.chips}>
-            {GENERAL_EXAM_CHIPS.map((c) => (
-              <Chip
-                key={c}
-                label={c}
-                selected={hasPhrase(generalExam, c)}
-                disabled={readOnly}
-                onPress={() => d.setField(FIELD.generalExam, appendPhrase(generalExam, c))}
-              />
-            ))}
-          </View>
-          {text(FIELD.generalExam, 'General examination notes')}
-        </Card>
-
-        <Card title="Systemic examination">
-          {text(
-            FIELD.systemicExam,
-            specialty === 'gastro' ? 'Per abdomen and other systems' : 'Eye examination',
-            specialty === 'gastro' ? 'e.g. Soft, mild epigastric tenderness. CVS, RS, CNS: NAD' : undefined,
-          )}
-          <Text style={styles.caption}>
-            {specialty === 'gastro'
-              ? 'Gastro tap-to-add options arrive with DIG-51.'
-              : 'The per-eye OD / OS sections arrive with DIG-52.'}
-          </Text>
-        </Card>
+            <Card title="Systemic examination">
+              {text(
+                FIELD.systemicExam,
+                'Per abdomen and other systems',
+                'e.g. Soft, mild epigastric tenderness. CVS, RS, CNS: NAD',
+              )}
+              <Text style={styles.caption}>Gastro tap-to-add options arrive with DIG-51.</Text>
+            </Card>
+          </>
+        )}
 
         <Card title="Assessment & diagnosis">
           <DiagnosisSection
@@ -286,6 +319,8 @@ export default function ConsultScreen() {
           />
           {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
         </Card>
+
+        {eye ? <SurgeryCard d={d} readOnly={readOnly} /> : null}
 
         <Card title="Plan">
           <Text style={styles.chipLabel}>Investigations</Text>
@@ -331,9 +366,15 @@ export default function ConsultScreen() {
               </Pressable>
             </View>
           ) : null}
-          {text(FIELD.plan, 'Plan', 'e.g. Medical management; review with reports')}
+          {text(
+            FIELD.plan,
+            eye ? 'Action plan' : 'Plan',
+            eye
+              ? 'e.g. Continue timolol OD; pre-op work-up for OS cataract'
+              : 'e.g. Medical management; review with reports',
+          )}
           {text(FIELD.advice, 'Advice', 'e.g. Small meals; avoid late dinner')}
-          <Text style={styles.chipLabel}>Follow-up</Text>
+          <Text style={styles.chipLabel}>{eye ? 'Review after' : 'Follow-up'}</Text>
           <View style={styles.chips}>
             {FOLLOW_UP_OPTIONS.map((o) => {
               const date = followUpDate(o.days, now);
@@ -352,6 +393,7 @@ export default function ConsultScreen() {
             {state.followUp ? followUpLabel(state.followUp, now) : 'No follow-up set'}
           </Text>
         </Card>
+        {eye ? vitalsCard : null}
       </ScrollView>
 
       <View style={styles.actions}>
@@ -391,23 +433,6 @@ function ModeButton({
     >
       <Text style={[styles.modeText, selected && { color: colors.onPrimary }]}>{label}</Text>
     </View>
-  );
-}
-
-function Chip(p: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={p.onPress}
-      disabled={p.disabled}
-      style={[styles.chip, p.selected && styles.chipSelected]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: p.selected, disabled: !!p.disabled }}
-    >
-      <Text style={[styles.chipText, p.selected && { color: colors.onPrimaryContainer }]}>
-        {p.selected ? '✓ ' : ''}
-        {p.label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -455,16 +480,6 @@ const styles = StyleSheet.create({
   vitalWarning: { ...type.caption, color: colors.warning },
   chipLabel: { ...type.label, color: colors.onSurfaceVariant },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    minHeight: MIN_TAP,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    justifyContent: 'center',
-  },
-  chipSelected: { backgroundColor: colors.primaryContainer, borderColor: colors.primary },
-  chipText: { ...type.label, color: colors.onSurface },
   addRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   addInput: {
     ...type.body,
