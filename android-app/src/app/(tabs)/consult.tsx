@@ -30,7 +30,9 @@ import {
   VITALS,
   vitalWarning,
 } from '../../consult/consult-fields';
-import { getDraft, keepDraft } from '../../consult/draft-registry';
+import { forgetDraft, getDraft, keepDraft } from '../../consult/draft-registry';
+import { buildReview, signErrorCode } from '../../consult/review';
+import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
@@ -83,6 +85,14 @@ export default function ConsultScreen() {
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [state, setState] = useState<DraftState | null>(null);
   const [newTest, setNewTest] = useState('');
+  // DIG-95: edit the note, review it, then sign.
+  const [mode, setMode] = useState<'edit' | 'review' | 'signed'>('edit');
+  const [sign, setSign] = useState<SignState>({ status: 'idle' });
+  const [signedAt, setSignedAt] = useState('');
+  useEffect(() => {
+    setMode('edit');
+    setSign({ status: 'idle' });
+  }, [id]);
 
   const start = useCallback(async () => {
     if (!id || !me) return;
@@ -201,6 +211,50 @@ export default function ConsultScreen() {
     </Card>
   );
 
+  /**
+   * Saves anything unsaved, then signs. If the save or the sign fails, nothing is lost: the note
+   * stays a draft and the patient stays In consult (hi-fi state S9).
+   */
+  async function signNow() {
+    setSign({ status: 'signing' });
+    const failed = (status: number, code: string) =>
+      setSign({
+        status: 'failed',
+        code: signErrorCode(status, code),
+        at: istTime(new Date().toISOString()),
+        offline: code === 'network' || d.state.status === 'offline',
+      });
+    await d.flush();
+    if (d.state.unsaved > 0) {
+      failed(0, d.state.status === 'offline' ? 'network' : 'not_saved');
+      return;
+    }
+    try {
+      const v = await api.signVisit(d.state.visitId);
+      d.markSigned();
+      forgetDraft(p.id);
+      void queueStore.refresh();
+      setSignedAt(v.signedAt ? istTime(v.signedAt) : istTime(new Date().toISOString()));
+      setMode('signed');
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'sign_blocked') {
+        const problems = Array.isArray(e.details.problems) ? (e.details.problems as { code: string }[]) : [];
+        setSign({
+          status: 'blocked',
+          problems: problems.map((x) =>
+            x.code === 'no_diagnosis'
+              ? 'Add at least one diagnosis (ICD-10 or Misc).'
+              : 'Confirm the dictated or scanned values.',
+          ),
+        });
+      } else if (e instanceof ApiError) {
+        failed(e.status, e.code);
+      } else {
+        failed(0, 'unknown');
+      }
+    }
+  }
+
   return (
     <KeyboardAvoidingView style={styles.screen} behavior="height">
       <View style={styles.header}>
@@ -218,7 +272,8 @@ export default function ConsultScreen() {
               {p.fullName} · {p.ageYears} {p.sex}
             </Text>
             <Text style={styles.headerSub}>
-              Consult · {me.displayName} · {SPECIALTY_OPD[specialty]}
+              {mode === 'edit' ? 'Consult' : mode === 'review' ? 'Review' : 'Signed'} · {me.displayName} ·{' '}
+              {SPECIALTY_OPD[specialty]}
             </Text>
           </View>
           <ProfileMenu variant="kebab" />
@@ -229,184 +284,223 @@ export default function ConsultScreen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.modes}>
-          <ModeButton label="Dictate" disabled />
-          <ModeButton label="Scan" disabled />
-          <ModeButton label="Type" selected />
-        </View>
-        <Text style={styles.caption}>
-          {saveStatusLine(state, istTime)} · Dictate and Scan arrive in Sprint 3
-        </Text>
+      {mode === 'review' ? (
+        <ReviewBody
+          review={buildReview({
+            specialty,
+            fields: state.fields,
+            diagnoses: state.diagnoses,
+            investigations: state.investigations,
+            followUp: state.followUp,
+            knownAllergies: p.allergies,
+            now,
+          })}
+          sign={sign}
+          onEdit={() => {
+            setSign({ status: 'idle' });
+            setMode('edit');
+          }}
+          onSign={() => void signNow()}
+        />
+      ) : mode === 'signed' ? (
+        <SignedBody
+          signedAt={signedAt}
+          onQueue={() => router.navigate('/')}
+          onPatient={() => router.navigate({ pathname: '/patient', params: { id: p.id } })}
+        />
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <View style={styles.modes}>
+              <ModeButton label="Dictate" disabled />
+              <ModeButton label="Scan" disabled />
+              <ModeButton label="Type" selected />
+            </View>
+            <Text style={styles.caption}>
+              {saveStatusLine(state, istTime)} · Dictate and Scan arrive in Sprint 3
+            </Text>
 
-        {eye ? <PurposeCard d={d} readOnly={readOnly} /> : null}
+            {eye ? <PurposeCard d={d} readOnly={readOnly} /> : null}
 
-        <Card title={eye ? 'Main complaints & history' : 'Chief complaint & history'}>
-          {eye ? (
-            <EyeTagChips
-              readOnly={readOnly}
-              onTag={(tag) => d.setField(FIELD.complaint, addEyeTag(d.value(FIELD.complaint), tag))}
-            />
-          ) : null}
-          {text(
-            FIELD.complaint,
-            eye ? 'Complaint and history (per eye)' : 'Complaint and history',
-            eye
-              ? 'OS: blurred vision for 6 months, gradual, worsening'
-              : 'What brings the patient, since when, how it has changed',
-          )}
-        </Card>
+            <Card title={eye ? 'Main complaints & history' : 'Chief complaint & history'}>
+              {eye ? (
+                <EyeTagChips
+                  readOnly={readOnly}
+                  onTag={(tag) => d.setField(FIELD.complaint, addEyeTag(d.value(FIELD.complaint), tag))}
+                />
+              ) : null}
+              {text(
+                FIELD.complaint,
+                eye ? 'Complaint and history (per eye)' : 'Complaint and history',
+                eye
+                  ? 'OS: blurred vision for 6 months, gradual, worsening'
+                  : 'What brings the patient, since when, how it has changed',
+              )}
+            </Card>
 
-        <Card title="Health history">
-          {text(FIELD.pastMedical, 'Past medical history', 'e.g. Type 2 diabetes for 8 years, on metformin')}
-          {text(FIELD.procedures, 'Past procedures and surgeries')}
-          <Text style={styles.known}>
-            Known allergies: {p.allergies.length ? p.allergies.join(', ') : 'none recorded'}
-          </Text>
-          {text(FIELD.allergies, 'Allergy (anything new or more detail)')}
-          {text(
-            FIELD.familySocial,
-            'Family and social history',
-            'e.g. Father diabetic; non-smoker; no alcohol',
-          )}
-        </Card>
+            <Card title="Health history">
+              {text(
+                FIELD.pastMedical,
+                'Past medical history',
+                'e.g. Type 2 diabetes for 8 years, on metformin',
+              )}
+              {text(FIELD.procedures, 'Past procedures and surgeries')}
+              <Text style={styles.known}>
+                Known allergies: {p.allergies.length ? p.allergies.join(', ') : 'none recorded'}
+              </Text>
+              {text(FIELD.allergies, 'Allergy (anything new or more detail)')}
+              {text(
+                FIELD.familySocial,
+                'Family and social history',
+                'e.g. Father diabetic; non-smoker; no alcohol',
+              )}
+            </Card>
 
-        {!eye ? vitalsCard : null}
+            {!eye ? vitalsCard : null}
 
-        {eye ? (
-          <>
-            <VisionCard d={d} readOnly={readOnly} />
-            <IopCard d={d} readOnly={readOnly} />
-            <ExamCard d={d} readOnly={readOnly} />
-            <DilatationCard d={d} readOnly={readOnly} />
-            <PhotosCard />
-          </>
-        ) : (
-          <>
-            <Card title="General examination">
-              <Text style={styles.chipLabel}>Tap to add</Text>
+            {eye ? (
+              <>
+                <VisionCard d={d} readOnly={readOnly} />
+                <IopCard d={d} readOnly={readOnly} />
+                <ExamCard d={d} readOnly={readOnly} />
+                <DilatationCard d={d} readOnly={readOnly} />
+                <PhotosCard />
+              </>
+            ) : (
+              <>
+                <Card title="General examination">
+                  <Text style={styles.chipLabel}>Tap to add</Text>
+                  <View style={styles.chips}>
+                    {GENERAL_EXAM_CHIPS.map((c) => (
+                      <Chip
+                        key={c}
+                        label={c}
+                        selected={hasPhrase(generalExam, c)}
+                        disabled={readOnly}
+                        onPress={() => d.setField(FIELD.generalExam, appendPhrase(generalExam, c))}
+                      />
+                    ))}
+                  </View>
+                  {text(FIELD.generalExam, 'General examination notes')}
+                </Card>
+
+                <GastroExamCard d={d} readOnly={readOnly} />
+              </>
+            )}
+
+            <Card title="Assessment & diagnosis">
+              <DiagnosisSection
+                diagnoses={state.diagnoses}
+                onChange={(list) => d.setDiagnoses(list)}
+                specialty={specialty}
+                today={followUpDate(0, now)}
+                readOnly={readOnly}
+              />
+              {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
+            </Card>
+
+            {eye ? <SurgeryCard d={d} readOnly={readOnly} /> : null}
+
+            <Card title="Plan">
+              <Text style={styles.chipLabel}>Investigations</Text>
               <View style={styles.chips}>
-                {GENERAL_EXAM_CHIPS.map((c) => (
+                {[...tests, ...extraTests].map((t) => (
                   <Chip
-                    key={c}
-                    label={c}
-                    selected={hasPhrase(generalExam, c)}
+                    key={t.testName}
+                    label={t.testName}
                     disabled={readOnly}
-                    onPress={() => d.setField(FIELD.generalExam, appendPhrase(generalExam, c))}
+                    selected={state.investigations.some(
+                      (s) => s.testName.toLowerCase() === t.testName.toLowerCase(),
+                    )}
+                    onPress={() => d.setInvestigations(toggleInvestigation(state.investigations, t))}
                   />
                 ))}
               </View>
-              {text(FIELD.generalExam, 'General examination notes')}
+              {!readOnly ? (
+                <View style={styles.addRow}>
+                  <TextInput
+                    style={[styles.addInput]}
+                    value={newTest}
+                    onChangeText={setNewTest}
+                    placeholder="Another test"
+                    placeholderTextColor={colors.onSurfaceVariant}
+                    maxLength={120}
+                    accessibilityLabel="Add another test"
+                  />
+                  <Pressable
+                    style={[styles.outlineButton, !newTest.trim() && { opacity: 0.5 }]}
+                    disabled={!newTest.trim()}
+                    onPress={() => {
+                      const t: InvestigationOrder = { testName: newTest.trim(), testCode: null };
+                      if (
+                        !state.investigations.some(
+                          (s) => s.testName.toLowerCase() === t.testName.toLowerCase(),
+                        )
+                      ) {
+                        d.setInvestigations([...state.investigations, t]);
+                      }
+                      setNewTest('');
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.outlineText}>+ Add</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {!eye ? <GastroPlanChips d={d} readOnly={readOnly} /> : null}
+              {text(
+                FIELD.plan,
+                eye ? 'Action plan' : 'Plan',
+                eye
+                  ? 'e.g. Continue timolol OD; pre-op work-up for OS cataract'
+                  : 'e.g. Medical management; review with reports',
+              )}
+              {text(FIELD.advice, 'Advice', 'e.g. Small meals; avoid late dinner')}
+              <Text style={styles.chipLabel}>{eye ? 'Review after' : 'Follow-up'}</Text>
+              <View style={styles.chips}>
+                {FOLLOW_UP_OPTIONS.map((o) => {
+                  const date = followUpDate(o.days, now);
+                  return (
+                    <Chip
+                      key={o.id}
+                      label={o.label}
+                      disabled={readOnly}
+                      selected={state.followUp === date}
+                      onPress={() => d.setFollowUp(state.followUp === date ? null : date)}
+                    />
+                  );
+                })}
+              </View>
+              <Text style={styles.followUp}>
+                {state.followUp ? followUpLabel(state.followUp, now) : 'No follow-up set'}
+              </Text>
             </Card>
+            {eye ? vitalsCard : null}
+          </ScrollView>
 
-            <GastroExamCard d={d} readOnly={readOnly} />
-          </>
-        )}
-
-        <Card title="Assessment & diagnosis">
-          <DiagnosisSection
-            diagnoses={state.diagnoses}
-            onChange={(list) => d.setDiagnoses(list)}
-            specialty={specialty}
-            today={followUpDate(0, now)}
-            readOnly={readOnly}
-          />
-          {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
-        </Card>
-
-        {eye ? <SurgeryCard d={d} readOnly={readOnly} /> : null}
-
-        <Card title="Plan">
-          <Text style={styles.chipLabel}>Investigations</Text>
-          <View style={styles.chips}>
-            {[...tests, ...extraTests].map((t) => (
-              <Chip
-                key={t.testName}
-                label={t.testName}
-                disabled={readOnly}
-                selected={state.investigations.some(
-                  (s) => s.testName.toLowerCase() === t.testName.toLowerCase(),
-                )}
-                onPress={() => d.setInvestigations(toggleInvestigation(state.investigations, t))}
-              />
-            ))}
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.outlineButton, { flex: 1 }]}
+              onPress={() => void d.flush()}
+              disabled={readOnly}
+              accessibilityRole="button"
+            >
+              <Text style={styles.outlineText}>Save draft</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.primaryButton, { flex: 1.3 }, readOnly && { opacity: 0.5 }]}
+              onPress={() => {
+                void d.flush();
+                setMode('review');
+              }}
+              disabled={readOnly}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryText}>Next: Review</Text>
+            </Pressable>
           </View>
-          {!readOnly ? (
-            <View style={styles.addRow}>
-              <TextInput
-                style={[styles.addInput]}
-                value={newTest}
-                onChangeText={setNewTest}
-                placeholder="Another test"
-                placeholderTextColor={colors.onSurfaceVariant}
-                maxLength={120}
-                accessibilityLabel="Add another test"
-              />
-              <Pressable
-                style={[styles.outlineButton, !newTest.trim() && { opacity: 0.5 }]}
-                disabled={!newTest.trim()}
-                onPress={() => {
-                  const t: InvestigationOrder = { testName: newTest.trim(), testCode: null };
-                  if (
-                    !state.investigations.some((s) => s.testName.toLowerCase() === t.testName.toLowerCase())
-                  ) {
-                    d.setInvestigations([...state.investigations, t]);
-                  }
-                  setNewTest('');
-                }}
-                accessibilityRole="button"
-              >
-                <Text style={styles.outlineText}>+ Add</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {!eye ? <GastroPlanChips d={d} readOnly={readOnly} /> : null}
-          {text(
-            FIELD.plan,
-            eye ? 'Action plan' : 'Plan',
-            eye
-              ? 'e.g. Continue timolol OD; pre-op work-up for OS cataract'
-              : 'e.g. Medical management; review with reports',
-          )}
-          {text(FIELD.advice, 'Advice', 'e.g. Small meals; avoid late dinner')}
-          <Text style={styles.chipLabel}>{eye ? 'Review after' : 'Follow-up'}</Text>
-          <View style={styles.chips}>
-            {FOLLOW_UP_OPTIONS.map((o) => {
-              const date = followUpDate(o.days, now);
-              return (
-                <Chip
-                  key={o.id}
-                  label={o.label}
-                  disabled={readOnly}
-                  selected={state.followUp === date}
-                  onPress={() => d.setFollowUp(state.followUp === date ? null : date)}
-                />
-              );
-            })}
-          </View>
-          <Text style={styles.followUp}>
-            {state.followUp ? followUpLabel(state.followUp, now) : 'No follow-up set'}
-          </Text>
-        </Card>
-        {eye ? vitalsCard : null}
-      </ScrollView>
-
-      <View style={styles.actions}>
-        <Pressable
-          style={[styles.outlineButton, { flex: 1 }]}
-          onPress={() => void d.flush()}
-          disabled={readOnly}
-          accessibilityRole="button"
-        >
-          <Text style={styles.outlineText}>Save draft</Text>
-        </Pressable>
-        <View
-          style={[styles.primaryButton, { flex: 1.3, opacity: 0.5 }]}
-          accessibilityState={{ disabled: true }}
-        >
-          <Text style={styles.primaryText}>Next: Review</Text>
-        </View>
-      </View>
+        </>
+      )}
     </KeyboardAvoidingView>
   );
 }

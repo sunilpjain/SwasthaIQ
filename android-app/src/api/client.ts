@@ -92,6 +92,10 @@ export class ApiClient {
   saveDraft(visitId: string, input: VisitDraftInput): Promise<VisitDetail> {
     return this.request('PUT', `/visits/${encodeURIComponent(visitId)}`, true, input);
   }
+  /** Sign (DIG-41): checks a diagnosis is present, locks the visit and sets the queue entry to Done. */
+  signVisit(visitId: string): Promise<VisitDetail> {
+    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`);
+  }
   /** The doctor's most-used diagnoses, shown first in the diagnosis picker (DIG-53). */
   diagnosisFavourites(): Promise<DiagnosisFavourite[]> {
     return this.request('GET', '/diagnoses/favourites');

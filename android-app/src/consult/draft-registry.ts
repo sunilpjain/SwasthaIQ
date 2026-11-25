@@ -14,6 +14,12 @@ export function keepDraft(patientId: string, store: DraftStore): void {
   drafts.set(patientId, store);
 }
 
+/** After signing: the next consult for this patient starts a new visit. */
+export function forgetDraft(patientId: string): void {
+  drafts.get(patientId)?.dispose();
+  drafts.delete(patientId);
+}
+
 export function clearDrafts(): void {
   for (const d of drafts.values()) d.dispose();
   drafts.clear();
