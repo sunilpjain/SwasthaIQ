@@ -19,7 +19,6 @@ export const FIELD = {
   spo2: 'vitals.spo2',
   rbs: 'vitals.rbs',
   generalExam: 'exam.general',
-  systemicExam: 'exam.systemic',
   assessment: 'assessment.assessment',
   plan: 'plan.plan',
   advice: 'plan.advice',

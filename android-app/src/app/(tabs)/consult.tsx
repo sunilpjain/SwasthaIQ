@@ -34,6 +34,7 @@ import { getDraft, keepDraft } from '../../consult/draft-registry';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
+import { GastroExamCard, GastroPlanChips } from '../../consult/GastroSections';
 import { addEyeTag } from '../../consult/eye-fields';
 import {
   DilatationCard,
@@ -298,14 +299,7 @@ export default function ConsultScreen() {
               {text(FIELD.generalExam, 'General examination notes')}
             </Card>
 
-            <Card title="Systemic examination">
-              {text(
-                FIELD.systemicExam,
-                'Per abdomen and other systems',
-                'e.g. Soft, mild epigastric tenderness. CVS, RS, CNS: NAD',
-              )}
-              <Text style={styles.caption}>Gastro tap-to-add options arrive with DIG-51.</Text>
-            </Card>
+            <GastroExamCard d={d} readOnly={readOnly} />
           </>
         )}
 
@@ -366,6 +360,7 @@ export default function ConsultScreen() {
               </Pressable>
             </View>
           ) : null}
+          {!eye ? <GastroPlanChips d={d} readOnly={readOnly} /> : null}
           {text(
             FIELD.plan,
             eye ? 'Action plan' : 'Plan',
