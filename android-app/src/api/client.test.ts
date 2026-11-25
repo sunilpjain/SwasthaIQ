@@ -146,3 +146,19 @@ describe('ApiClient conditions (DIG-48)', () => {
     expect(f.calls[0]?.init.method).toBe('PATCH');
   });
 });
+
+describe('ApiClient sign (DIG-95)', () => {
+  it('signs with POST and passes the 422 problems through', async () => {
+    const f = fakeFetch(422, {
+      code: 'sign_blocked',
+      message: 'Visit cannot be signed yet',
+      problems: [{ code: 'no_diagnosis' }],
+    });
+    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    const err = (await api.signVisit('v1').catch((x: unknown) => x)) as ApiError;
+    expect(f.calls[0]?.url).toBe('https://api.test/visits/v1/sign');
+    expect(f.calls[0]?.init.method).toBe('POST');
+    expect(err.code).toBe('sign_blocked');
+    expect(err.details.problems).toEqual([{ code: 'no_diagnosis' }]);
+  });
+});

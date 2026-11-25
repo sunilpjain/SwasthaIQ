@@ -140,6 +140,13 @@ export class DraftStore {
     this.schedule();
   }
 
+  /** After a successful sign: read-only from now on, nothing more is saved. */
+  markSigned(): void {
+    if (this.timer) this.timers.clear(this.timer);
+    this.timer = null;
+    this.set({ status: 'signed' });
+  }
+
   /** "Save draft" button, leaving the screen, or the app going to the background. */
   flush(): Promise<void> {
     if (this.timer) this.timers.clear(this.timer);

@@ -180,6 +180,17 @@ describe('DraftStore', () => {
     expect(t.timers.pending).toBe(0);
   });
 
+  it('stops saving once signed', async () => {
+    const t = setup();
+    t.store.setField('plan.advice', 'Rest');
+    t.store.markSigned();
+    expect(t.timers.pending).toBe(0);
+    t.store.setField('plan.advice', 'Changed');
+    await t.store.flush();
+    expect(t.api.saveDraft).not.toHaveBeenCalled();
+    expect(t.store.state.status).toBe('signed');
+  });
+
   it('opens an existing draft with its values, tests and follow-up', () => {
     const t = setup({
       fields: [{ section: 'vitals', key: 'pulse', value: '76', source: 'dictated', confirmed: false }],
