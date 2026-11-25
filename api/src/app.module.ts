@@ -17,6 +17,7 @@ import { RealtimeGateway } from './realtime/realtime.gateway';
 import { APP_VERSION } from './tokens';
 import { PatientsController } from './patients/patients.controller';
 import { PatientsService } from './patients/patients.service';
+import { DiagnosesController } from './visits/diagnoses.controller';
 import { VisitsController } from './visits/visits.controller';
 import { VisitsService } from './visits/visits.service';
 
@@ -43,6 +44,7 @@ export class AppModule {
         ClinicController,
         PatientsController,
         VisitsController,
+        DiagnosesController,
         AdminController,
       ],
       providers: [

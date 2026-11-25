@@ -1,7 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   CAPTURE_SOURCES,
+  DIAGNOSIS_CERTAINTIES,
   DIAGNOSIS_KINDS,
+  DIAGNOSIS_ROLES,
+  EYE_SIDES,
   ICD10_CODE_RE,
   type CaptureSource,
   type ConsultFieldInput,
@@ -116,6 +119,20 @@ function draftField(v: unknown, path: string): ConsultFieldInput {
   };
 }
 
+function oneOf<T extends string>(
+  o: Record<string, unknown>,
+  k: string,
+  path: string,
+  options: readonly T[],
+): T | undefined {
+  const v = o[k];
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'string' || !(options as readonly string[]).includes(v)) {
+    bad(`${path}.${k}`, `must be one of ${options.join(', ')}`);
+  }
+  return v as T;
+}
+
 export function parseDiagnoses(v: unknown, path: string): Diagnosis[] {
   return array(v, path, LIMITS.diagnoses).map((d, i) => {
     const p = `${path}[${i}]`;
@@ -125,13 +142,23 @@ export function parseDiagnoses(v: unknown, path: string): Diagnosis[] {
       bad(`${p}.kind`, `must be one of ${DIAGNOSIS_KINDS.join(', ')}`);
     }
     const label = str(d, 'label', p, LIMITS.labelChars).trim();
+    // Tags (DIG-53), with the defaults the API stores when they are left out.
+    const tags = {
+      role: oneOf(d, 'role', p, DIAGNOSIS_ROLES) ?? (i === 0 ? 'primary' : 'comorbidity'),
+      certainty: oneOf(d, 'certainty', p, DIAGNOSIS_CERTAINTIES) ?? 'final',
+      eye: oneOf(d, 'eye', p, EYE_SIDES) ?? null,
+      diagnosedOn:
+        d.diagnosedOn === undefined || d.diagnosedOn === null
+          ? null
+          : isoDate(d.diagnosedOn, `${p}.diagnosedOn`),
+    } as const;
     if (kind === 'misc') {
       if (d.icd10Code !== undefined && d.icd10Code !== null) bad(`${p}.icd10Code`, 'must be null for misc');
-      return { kind: 'misc', icd10Code: null, label };
+      return { kind: 'misc', icd10Code: null, label, ...tags };
     }
     const code = typeof d.icd10Code === 'string' ? d.icd10Code.trim().toUpperCase() : '';
-    if (!ICD10_CODE_RE.test(code)) bad(`${p}.icd10Code`, 'must be an ICD-10 code such as K21.0');
-    return { kind: 'icd10', icd10Code: code, label };
+    if (!ICD10_CODE_RE.test(code)) bad(`${p}.icd10Code`, 'must be an ICD-10 code such as K21.9');
+    return { kind: 'icd10', icd10Code: code, label, ...tags };
   });
 }
 

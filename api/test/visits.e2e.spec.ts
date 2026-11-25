@@ -232,7 +232,14 @@ describe('visits and consult note (DIG-41)', () => {
           amendedByName: expect.any(String),
           reason: 'Lab report came back',
           fields: amendment.fields,
-          diagnoses: amendment.diagnoses,
+          // Stored with the default tags (DIG-53).
+          diagnoses: amendment.diagnoses.map((d, i) => ({
+            ...d,
+            role: i === 0 ? 'primary' : 'comorbidity',
+            certainty: 'final',
+            eye: null,
+            diagnosedOn: null,
+          })),
           createdAt: expect.any(String),
         },
       ]);
@@ -282,7 +289,17 @@ describe('visits and consult note (DIG-41)', () => {
         .get(`/visits/${seedUuid('visit:G1-v1')}`)
         .set('Authorization', `Bearer ${samradnyee}`)
         .expect(200);
-      expect(res.body.diagnoses).toEqual([{ kind: 'icd10', icd10Code: 'K21.0', label: expect.any(String) }]);
+      expect(res.body.diagnoses).toEqual([
+        {
+          kind: 'icd10',
+          icd10Code: 'K21.0',
+          label: expect.any(String),
+          role: 'primary',
+          certainty: 'final',
+          eye: null,
+          diagnosedOn: '2026-08-14',
+        },
+      ]);
       expect(res.body.signedAt).not.toBeNull();
     });
 
@@ -355,6 +372,94 @@ describe('visits and consult note (DIG-41)', () => {
         investigationsClientUpdatedAt: new Date().toISOString(),
       }).expect(200);
       expect(cleared.body.investigations).toEqual([]);
+    });
+  });
+
+  describe('diagnosis tags and favourites (DIG-53)', () => {
+    const V4 = 'a1b2c3d4-0000-4000-8000-000000000004';
+    const E3 = seedUuid('patient:E3');
+
+    it('stores role, certainty, eye and date, defaulting the date to the visit date', async () => {
+      const res = await put(V4, samradnyee, {
+        patientId: E3,
+        diagnoses: [
+          {
+            kind: 'icd10',
+            icd10Code: 'E11.9',
+            label: 'Type 2 diabetes mellitus without complications',
+            role: 'comorbidity',
+          },
+          {
+            kind: 'icd10',
+            icd10Code: 'H25.13',
+            label: 'Age-related nuclear cataract, bilateral',
+            role: 'primary',
+            certainty: 'provisional',
+            eye: 'OU',
+            diagnosedOn: '2026-11-20',
+          },
+        ],
+        diagnosesClientUpdatedAt: new Date().toISOString(),
+      }).expect(200);
+      const v = res.body as VisitDetail;
+      expect(v.diagnoses).toEqual([
+        {
+          kind: 'icd10',
+          icd10Code: 'E11.9',
+          label: 'Type 2 diabetes mellitus without complications',
+          role: 'comorbidity',
+          certainty: 'final',
+          eye: null,
+          diagnosedOn: v.visitDate,
+        },
+        {
+          kind: 'icd10',
+          icd10Code: 'H25.13',
+          label: 'Age-related nuclear cataract, bilateral',
+          role: 'primary',
+          certainty: 'provisional',
+          eye: 'OU',
+          diagnosedOn: '2026-11-20',
+        },
+      ]);
+    });
+
+    it('signs with the diagnosis marked Primary on the visit list, not simply the first', async () => {
+      const res = await http()
+        .post(`/visits/${V4}/sign`)
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .expect(200);
+      expect(res.body.diagnosis).toBe('Age-related nuclear cataract, bilateral');
+    });
+
+    it('rejects RE / LE in place of OD / OS', async () => {
+      const bad = await put('a1b2c3d4-0000-4000-8000-000000000005', samradnyee, {
+        patientId: E3,
+        diagnoses: [{ kind: 'misc', label: 'x', eye: 'RE' }],
+        diagnosesClientUpdatedAt: new Date().toISOString(),
+      }).expect(400);
+      expect(bad.body.message).toMatch(/eye must be one of OD, OS, OU/);
+    });
+
+    it('lists each doctor’s most-used codes from their own visits, seed visits included', async () => {
+      const sam = await http()
+        .get('/diagnoses/favourites')
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .expect(200);
+      const codes = (sam.body as { icd10Code: string; uses: number }[]).map((f) => f.icd10Code);
+      expect(codes).toEqual(expect.arrayContaining(['H25.13', 'E11.9']));
+      expect(codes).not.toContain('K21.0'); // Dr. Saiyam's code
+      const saiyamFav = await http()
+        .get('/diagnoses/favourites')
+        .set('Authorization', `Bearer ${saiyam}`)
+        .expect(200);
+      expect(saiyamFav.body[0]).toEqual({
+        icd10Code: expect.any(String),
+        label: expect.any(String),
+        uses: expect.any(Number),
+      });
+      expect((saiyamFav.body as { icd10Code: string }[]).map((f) => f.icd10Code)).toContain('K80.20');
+      await http().get('/diagnoses/favourites').set('Authorization', `Bearer ${admin}`).expect(403);
     });
   });
 });

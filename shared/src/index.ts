@@ -139,7 +139,7 @@ export interface VisitDetail extends VisitSummary {
   signedAt: string | null;
   /** ISO date of the planned follow-up, if set. */
   followUp: string | null;
-  diagnoses: Diagnosis[];
+  diagnoses: RecordedDiagnosis[];
   investigations: InvestigationOrder[];
   fields: ConsultField[];
   rxLines: RxLine[];
@@ -152,11 +152,45 @@ export interface VisitDetail extends VisitSummary {
 export const DIAGNOSIS_KINDS = ['icd10', 'misc'] as const;
 export type DiagnosisKind = (typeof DIAGNOSIS_KINDS)[number];
 
+export const DIAGNOSIS_ROLES = ['primary', 'comorbidity'] as const;
+export type DiagnosisRole = (typeof DIAGNOSIS_ROLES)[number];
+
+export const DIAGNOSIS_CERTAINTIES = ['provisional', 'final'] as const;
+export type DiagnosisCertainty = (typeof DIAGNOSIS_CERTAINTIES)[number];
+
+/** Eyes are always OD / OS / OU in the doctor's view (DIG-52), never RE / LE / BE. */
+export const EYE_SIDES = ['OD', 'OS', 'OU'] as const;
+export type EyeSide = (typeof EYE_SIDES)[number];
+
+/** A diagnosis as sent by the app. The tags are optional (DIG-53); see RecordedDiagnosis for defaults. */
 export interface Diagnosis {
   kind: DiagnosisKind;
-  /** e.g. "K21.0"; null for Misc. */
+  /** e.g. "K21.9"; null for Misc. */
   icd10Code: string | null;
   label: string;
+  /** Default: the first diagnosis is Primary, the rest Co-morbidity. */
+  role?: DiagnosisRole;
+  /** Default: Final. */
+  certainty?: DiagnosisCertainty;
+  /** Eye diagnoses only. */
+  eye?: EyeSide | null;
+  /** ISO date; default: the visit date. */
+  diagnosedOn?: string | null;
+}
+
+/** A diagnosis as stored and returned, with every tag filled in. */
+export interface RecordedDiagnosis extends Diagnosis {
+  role: DiagnosisRole;
+  certainty: DiagnosisCertainty;
+  eye: EyeSide | null;
+  diagnosedOn: string;
+}
+
+/** A doctor's most-used diagnosis from their own visits (GET /diagnoses/favourites). */
+export interface DiagnosisFavourite {
+  icd10Code: string;
+  label: string;
+  uses: number;
 }
 
 /** ICD-10 code shape: letter, two digits, optional dot and 1–4 characters (e.g. K21.0, H40.1131). */

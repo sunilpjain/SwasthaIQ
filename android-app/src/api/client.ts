@@ -1,4 +1,5 @@
 import type {
+  DiagnosisFavourite,
   HealthResponse,
   Patient,
   PatientCondition,
@@ -90,6 +91,10 @@ export class ApiClient {
   /** Draft save (DIG-41): the app picks the visit id, so a retried save creates nothing twice. */
   saveDraft(visitId: string, input: VisitDraftInput): Promise<VisitDetail> {
     return this.request('PUT', `/visits/${encodeURIComponent(visitId)}`, true, input);
+  }
+  /** The doctor's most-used diagnoses, shown first in the diagnosis picker (DIG-53). */
+  diagnosisFavourites(): Promise<DiagnosisFavourite[]> {
+    return this.request('GET', '/diagnoses/favourites');
   }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);

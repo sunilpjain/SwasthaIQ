@@ -1,4 +1,10 @@
-import type { CaptureSource, InvestigationOrder, VisitDetail, VisitDraftInput } from '@swasthyaiq/shared';
+import type {
+  CaptureSource,
+  Diagnosis,
+  InvestigationOrder,
+  VisitDetail,
+  VisitDraftInput,
+} from '@swasthyaiq/shared';
 import { ApiError } from '../api/client';
 import { splitKey } from './consult-fields';
 
@@ -27,6 +33,8 @@ export interface DraftState {
   patientId: string;
   fields: Record<string, DraftField>;
   investigations: InvestigationOrder[];
+  /** Diagnoses with their tags (DIG-53); at least one is needed to sign. */
+  diagnoses: Diagnosis[];
   followUp: string | null;
   status: SaveStatus;
   lastSavedAt: string | null;
@@ -51,6 +59,7 @@ export class DraftStore {
   private listeners = new Set<(s: DraftState) => void>();
   private dirtyFields = new Set<string>();
   private investigationsAt: string | null = null;
+  private diagnosesAt: string | null = null;
   private followUpDirty = false;
   private timer: unknown = null;
   private saving: Promise<void> | null = null;
@@ -76,6 +85,7 @@ export class DraftStore {
       patientId: init.patientId,
       fields,
       investigations: init.existing?.investigations ?? [],
+      diagnoses: init.existing?.diagnoses ?? [],
       followUp: init.existing?.followUp ?? null,
       status: init.existing ? 'saved' : 'idle',
       lastSavedAt: null,
@@ -116,6 +126,13 @@ export class DraftStore {
     this.schedule();
   }
 
+  setDiagnoses(list: Diagnosis[]): void {
+    if (this.current.status === 'signed') return;
+    this.diagnosesAt = this.now().toISOString();
+    this.set({ diagnoses: list });
+    this.schedule();
+  }
+
   setFollowUp(date: string | null): void {
     if (this.current.status === 'signed') return;
     this.followUpDirty = true;
@@ -145,7 +162,12 @@ export class DraftStore {
   }
 
   private pendingCount(): number {
-    return this.dirtyFields.size + (this.investigationsAt ? 1 : 0) + (this.followUpDirty ? 1 : 0);
+    return (
+      this.dirtyFields.size +
+      (this.investigationsAt ? 1 : 0) +
+      (this.diagnosesAt ? 1 : 0) +
+      (this.followUpDirty ? 1 : 0)
+    );
   }
 
   private save(): Promise<void> {
@@ -169,6 +191,8 @@ export class DraftStore {
     const sent = [...this.dirtyFields].map((k) => [k, this.current.fields[k]!] as const);
     const investigationsAt = this.investigationsAt;
     const investigations = this.current.investigations;
+    const diagnosesAt = this.diagnosesAt;
+    const diagnoses = this.current.diagnoses;
     const followUpDirty = this.followUpDirty;
     const followUp = this.current.followUp;
 
@@ -186,6 +210,10 @@ export class DraftStore {
       input.investigations = investigations;
       input.investigationsClientUpdatedAt = investigationsAt;
     }
+    if (diagnosesAt) {
+      input.diagnoses = diagnoses;
+      input.diagnosesClientUpdatedAt = diagnosesAt;
+    }
     if (followUpDirty) input.followUp = followUp;
 
     this.set({ status: 'saving', unsaved: this.pendingCount() });
@@ -195,6 +223,7 @@ export class DraftStore {
         if (this.current.fields[k]?.updatedAt === f.updatedAt) this.dirtyFields.delete(k);
       }
       if (this.investigationsAt === investigationsAt) this.investigationsAt = null;
+      if (this.diagnosesAt === diagnosesAt) this.diagnosesAt = null;
       if (followUpDirty && this.current.followUp === followUp) this.followUpDirty = false;
       this.set({ status: 'saved', lastSavedAt: this.now().toISOString(), unsaved: this.pendingCount() });
     } catch (e) {
