@@ -9,6 +9,8 @@ import {
 import type {
   ConsultField,
   Diagnosis,
+  DiagnosisFavourite,
+  RecordedDiagnosis,
   LabReport,
   RxLine,
   SignProblem,
@@ -159,6 +161,10 @@ export class VisitsService {
                     kind: d.kind,
                     icd10_code: d.icd10Code,
                     label: d.label,
+                    role: d.role ?? (i === 0 ? 'primary' : 'comorbidity'),
+                    certainty: d.certainty ?? 'final',
+                    eye: d.eye ?? null,
+                    diagnosed_on: d.diagnosedOn ?? v.visit_date,
                   })),
                 )
                 .execute();
@@ -226,7 +232,7 @@ export class VisitsService {
 
       const diagnoses = await trx
         .selectFrom('visit_diagnoses')
-        .select(['kind', 'icd10_code', 'label'])
+        .select(['kind', 'icd10_code', 'label', 'role'])
         .where('visit_id', '=', visitId)
         .orderBy('position')
         .execute();
@@ -255,7 +261,8 @@ export class VisitsService {
         });
       }
 
-      const primary = diagnoses[0]!;
+      // The visit list shows the Primary diagnosis (the first one if none is marked).
+      const primary = diagnoses.find((d) => d.role === 'primary') ?? diagnoses[0]!;
       await trx
         .updateTable('visits')
         .set({
@@ -329,6 +336,29 @@ export class VisitsService {
     return this.detail(visitId);
   }
 
+  /**
+   * The doctor's most-used coded diagnoses across their own visits (seed visits included, which
+   * keep their one diagnosis on the visit row), most used first, then most recent.
+   */
+  async favourites(user: AuthUser, limit = 15): Promise<DiagnosisFavourite[]> {
+    const rows = await sql<{ code: string; label: string; uses: string }>`
+      SELECT code, min(label) AS label, count(*) AS uses
+      FROM (
+        SELECT d.icd10_code AS code, d.label, v.visit_date
+        FROM visit_diagnoses d JOIN visits v ON v.id = d.visit_id
+        WHERE v.doctor_id = ${user.id} AND d.kind = 'icd10'
+        UNION ALL
+        SELECT v.icd10_code, v.diagnosis, v.visit_date
+        FROM visits v
+        WHERE v.doctor_id = ${user.id} AND v.icd10_code IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM visit_diagnoses d WHERE d.visit_id = v.id)
+      ) t
+      GROUP BY code
+      ORDER BY count(*) DESC, max(visit_date) DESC, code
+      LIMIT ${limit}`.execute(this.db);
+    return rows.rows.map((r) => ({ icd10Code: r.code, label: r.label, uses: Number(r.uses) }));
+  }
+
   async detail(visitId: string): Promise<VisitDetail> {
     assertUuid(visitId, 'Visit');
     const v = await this.db
@@ -362,7 +392,7 @@ export class VisitsService {
         .execute(),
       this.db
         .selectFrom('visit_diagnoses')
-        .select(['kind', 'icd10_code', 'label'])
+        .select(['kind', 'icd10_code', 'label', 'role', 'certainty', 'eye', 'diagnosed_on'])
         .where('visit_id', '=', visitId)
         .orderBy('position')
         .execute(),
@@ -449,10 +479,28 @@ export class VisitsService {
     }));
 
     // Seed visits predate visit_diagnoses and carry their one diagnosis on the visit row.
-    const diagnoses: Diagnosis[] = diagRows.length
-      ? diagRows.map((d) => ({ kind: d.kind, icd10Code: d.icd10_code, label: d.label }))
+    const diagnoses: RecordedDiagnosis[] = diagRows.length
+      ? diagRows.map((d) => ({
+          kind: d.kind,
+          icd10Code: d.icd10_code,
+          label: d.label,
+          role: d.role,
+          certainty: d.certainty,
+          eye: d.eye,
+          diagnosedOn: d.diagnosed_on ?? v.visit_date,
+        }))
       : v.diagnosis
-        ? [{ kind: v.icd10_code ? 'icd10' : 'misc', icd10Code: v.icd10_code, label: v.diagnosis }]
+        ? [
+            {
+              kind: v.icd10_code ? 'icd10' : 'misc',
+              icd10Code: v.icd10_code,
+              label: v.diagnosis,
+              role: 'primary',
+              certainty: 'final',
+              eye: null,
+              diagnosedOn: v.visit_date,
+            },
+          ]
         : [];
 
     const consultFields: ConsultField[] = fields.map((f) => ({ ...f }));
@@ -504,6 +552,7 @@ export class VisitsService {
         'version',
         'diagnoses_client_updated_at',
         'investigations_client_updated_at',
+        'visit_date',
       ])
       .where('id', '=', visitId)
       .forUpdate()

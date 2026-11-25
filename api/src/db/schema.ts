@@ -112,6 +112,10 @@ export interface VisitDiagnosesTable {
   kind: 'icd10' | 'misc';
   icd10_code: string | null;
   label: string;
+  role: Generated<'primary' | 'comorbidity'>;
+  certainty: Generated<'provisional' | 'final'>;
+  eye: 'OD' | 'OS' | 'OU' | null;
+  diagnosed_on: DateCol | null;
 }
 
 export interface VisitAmendmentsTable {

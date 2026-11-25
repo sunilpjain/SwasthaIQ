@@ -39,9 +39,11 @@ describe('parseDraft', () => {
       followUp: '2026-12-07',
     });
     expect(d.fields).toHaveLength(1);
+    // Tags default when left out: first Primary, the rest Co-morbidity, all Final (DIG-53).
+    const defaults = { certainty: 'final', eye: null, diagnosedOn: null };
     expect(d.diagnoses).toEqual([
-      { kind: 'icd10', icd10Code: 'K21.0', label: 'GERD' },
-      { kind: 'misc', icd10Code: null, label: 'Post-op review' },
+      { kind: 'icd10', icd10Code: 'K21.0', label: 'GERD', role: 'primary', ...defaults },
+      { kind: 'misc', icd10Code: null, label: 'Post-op review', role: 'comorbidity', ...defaults },
     ]);
     expect(d.followUp).toBe('2026-12-07');
   });
@@ -128,6 +130,58 @@ describe('parseDiagnoses', () => {
     ['malformed code', [{ kind: 'icd10', icd10Code: 'K2', label: 'GERD' }], /must be an ICD-10 code/],
   ])('rejects %s', (_name, v, re) => {
     expect(message(() => parseDiagnoses(v, 'diagnoses'))).toMatch(re);
+  });
+
+  it('keeps the tags the doctor set (DIG-53)', () => {
+    expect(
+      parseDiagnoses(
+        [
+          {
+            kind: 'icd10',
+            icd10Code: 'H25.13',
+            label: 'Cataract',
+            role: 'comorbidity',
+            certainty: 'provisional',
+            eye: 'OU',
+            diagnosedOn: '2026-11-25',
+          },
+          { kind: 'icd10', icd10Code: 'E11.9', label: 'T2DM', role: 'primary' },
+        ],
+        'd',
+      ),
+    ).toEqual([
+      {
+        kind: 'icd10',
+        icd10Code: 'H25.13',
+        label: 'Cataract',
+        role: 'comorbidity',
+        certainty: 'provisional',
+        eye: 'OU',
+        diagnosedOn: '2026-11-25',
+      },
+      {
+        kind: 'icd10',
+        icd10Code: 'E11.9',
+        label: 'T2DM',
+        role: 'primary',
+        certainty: 'final',
+        eye: null,
+        diagnosedOn: null,
+      },
+    ]);
+  });
+
+  it.each<[string, unknown, RegExp]>([
+    ['bad role', [{ kind: 'misc', label: 'x', role: 'main' }], /role must be one of primary, comorbidity/],
+    [
+      'bad certainty',
+      [{ kind: 'misc', label: 'x', certainty: 'sure' }],
+      /certainty must be one of provisional, final/,
+    ],
+    ['RE instead of OD', [{ kind: 'misc', label: 'x', eye: 'RE' }], /eye must be one of OD, OS, OU/],
+    ['bad date', [{ kind: 'misc', label: 'x', diagnosedOn: 'today' }], /diagnosedOn must be an ISO date/],
+  ])('rejects a %s', (_name, v, re) => {
+    expect(message(() => parseDiagnoses(v, 'd'))).toMatch(re);
   });
 
   it('accepts long eye codes', () => {

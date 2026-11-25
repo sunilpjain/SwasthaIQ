@@ -32,6 +32,7 @@ import {
 } from '../../consult/consult-fields';
 import { getDraft, keepDraft } from '../../consult/draft-registry';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
+import DiagnosisSection from '../../consult/DiagnosisSection';
 import FieldBox, { SourceBadge } from '../../consult/FieldBox';
 import Card, { cardStyles } from '../../patient/Card';
 import { queueStore } from '../../queue/queue-instance';
@@ -276,10 +277,13 @@ export default function ConsultScreen() {
         </Card>
 
         <Card title="Assessment & diagnosis">
-          <View style={styles.required}>
-            <Text style={styles.requiredText}>Diagnosis (ICD-10) · required to sign</Text>
-            <Text style={styles.caption}>The diagnosis picker arrives with DIG-53.</Text>
-          </View>
+          <DiagnosisSection
+            diagnoses={state.diagnoses}
+            onChange={(list) => d.setDiagnoses(list)}
+            specialty={specialty}
+            today={followUpDate(0, now)}
+            readOnly={readOnly}
+          />
           {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
         </Card>
 
@@ -461,15 +465,6 @@ const styles = StyleSheet.create({
   },
   chipSelected: { backgroundColor: colors.primaryContainer, borderColor: colors.primary },
   chipText: { ...type.label, color: colors.onSurface },
-  required: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.outline,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  requiredText: { ...type.bodyStrong, color: colors.onSurface },
   addRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   addInput: {
     ...type.body,

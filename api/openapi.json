@@ -260,6 +260,25 @@
         ]
       }
     },
+    "/diagnoses/favourites": {
+      "get": {
+        "operationId": "DiagnosesController_favourites",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
     "/admin/users": {
       "get": {
         "operationId": "AdminController_users",

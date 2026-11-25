@@ -109,6 +109,25 @@ describe('DraftStore', () => {
     });
   });
 
+  it('sends the diagnosis list with its own timestamp (DIG-53)', async () => {
+    const t = setup();
+    const gerd = {
+      kind: 'icd10' as const,
+      icd10Code: 'K21.9',
+      label: 'GERD',
+      role: 'primary' as const,
+      certainty: 'final' as const,
+    };
+    t.store.setDiagnoses([gerd]);
+    await t.store.flush();
+    expect(t.calls[0]!.input).toEqual({
+      patientId: 'p1',
+      diagnoses: [gerd],
+      diagnosesClientUpdatedAt: '2026-11-24T05:00:00.000Z',
+    });
+    expect(t.store.state.unsaved).toBe(0);
+  });
+
   it('keeps an edit made while a save is in flight, and saves it next', async () => {
     const t = setup();
     let release!: () => void;
@@ -165,6 +184,17 @@ describe('DraftStore', () => {
     const t = setup({
       fields: [{ section: 'vitals', key: 'pulse', value: '76', source: 'dictated', confirmed: false }],
       investigations: [{ testName: 'CBC', testCode: 'HB' }],
+      diagnoses: [
+        {
+          kind: 'misc',
+          icd10Code: null,
+          label: 'Post-op review',
+          role: 'primary',
+          certainty: 'final',
+          eye: null,
+          diagnosedOn: '2026-11-24',
+        },
+      ],
       followUp: '2026-12-01',
       signedAt: null,
     } as unknown as VisitDetail);
@@ -172,6 +202,7 @@ describe('DraftStore', () => {
     expect(t.store.state.fields['vitals.pulse']).toMatchObject({ source: 'dictated', confirmed: false });
     expect(t.store.state).toMatchObject({ followUp: '2026-12-01', status: 'saved', unsaved: 0 });
     expect(t.store.state.investigations).toHaveLength(1);
+    expect(t.store.state.diagnoses[0]?.label).toBe('Post-op review');
   });
 
   it('describes the save state', () => {
