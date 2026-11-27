@@ -21,7 +21,7 @@ import type {
 import { sql } from 'kysely';
 import type { AuthUser } from '../auth/auth.decorators';
 import { DB, type Db } from '../db/database';
-import { currentVersion } from '../visits/visits.service';
+import { currentDiagnosis, currentDiagnosisCode, currentVersion, editedAt } from '../visits/visits.service';
 import { assertUuid, isUuid, PATIENT_COLS, toPatient } from './patient-row';
 
 type RxRow = {
@@ -307,8 +307,9 @@ export class PatientsService {
         'visits.visit_date',
         'visits.status',
         currentVersion.as('version'),
-        'visits.diagnosis',
-        'visits.icd10_code',
+        currentDiagnosis.as('diagnosis'),
+        currentDiagnosisCode.as('icd10_code'),
+        editedAt.as('edited_at'),
         'visits.is_seed',
       ])
       .where('visits.patient_id', '=', patientId)
@@ -326,6 +327,7 @@ export class PatientsService {
       version: Number(r.version),
       diagnosis: r.diagnosis,
       diagnosisCode: r.icd10_code,
+      editedAt: r.edited_at ? new Date(r.edited_at).toISOString() : null,
       isSeed: r.is_seed,
     }));
   }

@@ -10,6 +10,7 @@ import type {
   ConsultField,
   Diagnosis,
   DiagnosisFavourite,
+  InvestigationOrder,
   RecordedDiagnosis,
   LabReport,
   RxLine,
@@ -49,7 +50,33 @@ export const currentVersion = sql<number>`coalesce((SELECT max(a.version) FROM v
 interface AmendmentChanges {
   fields?: VisitAmendmentInput['fields'];
   diagnoses?: Diagnosis[];
+  investigations?: InvestigationOrder[];
+  followUp?: string | null;
 }
+
+/** DIG-97: no reason is needed for an edit made on the day the visit was signed (IST). */
+export const SAME_DAY_REASON = 'Same-day edit';
+
+export function isSameDayEdit(signedAt: Date | null, now: Date): boolean {
+  return signedAt !== null && istToday(signedAt) === istToday(now);
+}
+
+/**
+ * The latest version's Primary diagnosis: from the newest amendment that changed the diagnoses,
+ * else from the visit row. Used by the visit lists, so everyone sees the latest version (DIG-97).
+ */
+const latestPrimary = sql`(
+  SELECT e.d FROM visit_amendments a,
+    jsonb_array_elements(a.changes->'diagnoses') WITH ORDINALITY AS e(d, n)
+  WHERE a.visit_id = visits.id AND a.changes ? 'diagnoses'
+  ORDER BY a.version DESC, (e.d->>'role' = 'primary') DESC, e.n
+  LIMIT 1)`;
+export const currentDiagnosis = sql<string | null>`coalesce(${latestPrimary}->>'label', visits.diagnosis)`;
+export const currentDiagnosisCode = sql<
+  string | null
+>`CASE WHEN ${latestPrimary} IS NULL THEN visits.icd10_code ELSE ${latestPrimary}->>'icd10Code' END`;
+/** When the latest amendment was saved; null for an unedited visit. */
+export const editedAt = sql<Date | null>`(SELECT max(a.created_at) FROM visit_amendments a WHERE a.visit_id = visits.id)`;
 
 type Trx = Transaction<Database>;
 
@@ -321,9 +348,18 @@ export class VisitsService {
         .select((eb) => eb.fn.max('version').as('max'))
         .where('visit_id', '=', visitId)
         .executeTakeFirst();
+      const reason = input.reason ?? (isSameDayEdit(v.signed_at, new Date()) ? SAME_DAY_REASON : null);
+      if (!reason) {
+        throw new UnprocessableEntityException({
+          code: 'reason_required',
+          message: 'The visit was signed on an earlier day; give a reason for the change',
+        });
+      }
       const changes: AmendmentChanges = {};
       if (input.fields?.length) changes.fields = input.fields;
       if (input.diagnoses) changes.diagnoses = input.diagnoses;
+      if (input.investigations) changes.investigations = input.investigations;
+      if (input.followUp !== undefined) changes.followUp = input.followUp;
       await trx
         .insertInto('visit_amendments')
         .values({
@@ -331,7 +367,7 @@ export class VisitsService {
           visit_id: visitId,
           version: (last?.max ?? v.version) + 1,
           amended_by: user.id,
-          reason: input.reason,
+          reason,
           changes: JSON.stringify(changes),
         })
         .execute();
@@ -506,10 +542,29 @@ export class VisitsService {
           ]
         : [];
 
-    const consultFields: ConsultField[] = fields.map((f) => ({ ...f }));
-
+    // DIG-97: the record shows the latest version. The signed rows stay as they were (the
+    // triggers keep them read-only); each amendment's changes are applied on top, oldest first.
+    const current = new Map<string, ConsultField>(fields.map((f) => [`${f.section}.${f.key}`, { ...f }]));
+    let currentDiagnoses: RecordedDiagnosis[] = diagnoses;
+    let currentInvestigations: InvestigationOrder[] = investigations.map((o) => ({
+      testName: o.test_name,
+      testCode: o.test_code,
+    }));
+    let currentFollowUp = v.follow_up;
     const amendmentList: VisitAmendment[] = amendments.map((a) => {
       const c = (typeof a.changes === 'string' ? JSON.parse(a.changes) : a.changes) as AmendmentChanges;
+      for (const f of c.fields ?? []) current.set(`${f.section}.${f.key}`, { ...f });
+      if (c.diagnoses) {
+        currentDiagnoses = c.diagnoses.map((d, i) => ({
+          ...d,
+          role: d.role ?? (i === 0 ? 'primary' : 'comorbidity'),
+          certainty: d.certainty ?? 'final',
+          eye: d.eye ?? null,
+          diagnosedOn: d.diagnosedOn ?? v.visit_date,
+        }));
+      }
+      if (c.investigations) currentInvestigations = c.investigations;
+      if (c.followUp !== undefined) currentFollowUp = c.followUp;
       return {
         id: a.id,
         version: a.version,
@@ -518,9 +573,17 @@ export class VisitsService {
         reason: a.reason,
         fields: c.fields ?? [],
         diagnoses: c.diagnoses ?? null,
+        investigations: c.investigations ?? null,
+        followUp: c.followUp,
         createdAt: a.created_at.toISOString(),
       };
     });
+    const consultFields: ConsultField[] = [...current.values()]
+      // Cleared in an edit: the amendment keeps the empty value, the record leaves it out.
+      .filter((f) => f.value !== '')
+      .sort((x, y) => x.section.localeCompare(y.section) || x.key.localeCompare(y.key));
+    const primary = currentDiagnoses.find((d) => d.role === 'primary') ?? currentDiagnoses[0];
+    const last = amendments[amendments.length - 1];
 
     return {
       id: v.id,
@@ -531,13 +594,14 @@ export class VisitsService {
       visitDate: v.visit_date,
       status: v.status,
       version: Number(v.version),
-      diagnosis: v.diagnosis,
-      diagnosisCode: v.icd10_code,
+      diagnosis: last && primary ? primary.label : v.diagnosis,
+      diagnosisCode: last && primary ? primary.icd10Code : v.icd10_code,
+      editedAt: last?.created_at.toISOString() ?? null,
       isSeed: v.is_seed,
       signedAt: v.signed_at?.toISOString() ?? null,
-      followUp: v.follow_up,
-      diagnoses,
-      investigations: investigations.map((o) => ({ testName: o.test_name, testCode: o.test_code })),
+      followUp: currentFollowUp,
+      diagnoses: currentDiagnoses,
+      investigations: currentInvestigations,
       fields: consultFields,
       rxLines,
       labReports,
@@ -557,6 +621,7 @@ export class VisitsService {
         'diagnoses_client_updated_at',
         'investigations_client_updated_at',
         'visit_date',
+        'signed_at',
       ])
       .where('id', '=', visitId)
       .forUpdate()

@@ -15,6 +15,7 @@ import { ApiError } from '../../api/client';
 import { api, useSession } from '../../auth/SessionProvider';
 import Placeholder from '../../components/Placeholder';
 import ProfileMenu from '../../components/ProfileMenu';
+import { canEdit, versionTag } from '../../consult/amend';
 import Card, { cardStyles } from '../../patient/Card';
 import ConditionsCard from '../../patient/ConditionsCard';
 import {
@@ -109,13 +110,20 @@ export default function PatientScreen() {
   const shared = sharedLabel(d.visits, myId);
   const meds = currentMedicineRows(d.currentMedicines, myId);
   const last = lastVisitLines(d, myId);
+  const now = new Date();
+  const lastTag = d.lastVisit ? versionTag(d.lastVisit, now, istTime) : null;
+  // DIG-97: the signing doctor can edit a signed visit; it is saved as a new version.
+  const editVisit = (visitId: string) => {
+    setTimelineOpen(false);
+    router.navigate({ pathname: '/consult', params: { id: p.id, edit: visitId } });
+  };
   const subtitle = [maskPhone(p.phone), entry?.doctorName].filter(Boolean).join(' · ');
 
   async function startConsult() {
     setStarting(true);
     try {
       if (withMe || (await openConsult(p.id)))
-        router.navigate({ pathname: '/consult', params: { id: p.id } });
+        router.navigate({ pathname: '/consult', params: { id: p.id, edit: '' } });
     } finally {
       setStarting(false);
     }
@@ -191,9 +199,22 @@ export default function PatientScreen() {
         >
           {last ? (
             <>
-              <Text style={styles.meta}>{last.meta}</Text>
+              <Text style={styles.meta}>
+                {last.meta}
+                {lastTag ? ` · ${lastTag}` : ''}
+              </Text>
               <Text style={styles.diagnosis}>{last.diagnosis}</Text>
               {last.rx ? <Text style={cardStyles.lineText}>{last.rx}</Text> : null}
+              {d.lastVisit && canEdit(d.lastVisit, myId) ? (
+                <Pressable
+                  style={styles.editLink}
+                  onPress={() => editVisit(d.lastVisit!.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit the last visit's note"
+                >
+                  <Text style={styles.outlineText}>Edit note</Text>
+                </Pressable>
+              ) : null}
             </>
           ) : (
             <Text style={cardStyles.empty}>No previous visits. This is the patient’s first visit.</Text>
@@ -272,9 +293,19 @@ export default function PatientScreen() {
                 <Text style={styles.meta}>
                   {shortDate(v.visitDate, true)} · {doctorLabel(v.doctorId, v.doctorName, myId)}
                   {v.status === 'draft' ? ' · Draft' : ''}
-                  {v.version > 1 ? ` · amended (v${v.version})` : ''}
+                  {versionTag(v, now, istTime) ? ` · ${versionTag(v, now, istTime)}` : ''}
                 </Text>
                 <Text style={styles.diagnosis}>{v.diagnosis ?? 'No diagnosis recorded'}</Text>
+                {canEdit(v, myId) ? (
+                  <Pressable
+                    style={styles.editLink}
+                    onPress={() => editVisit(v.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit the note of ${shortDate(v.visitDate, true)}`}
+                  >
+                    <Text style={styles.outlineText}>Edit note</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ))}
             <Text style={cardStyles.empty}>Opening a full visit record arrives with DIG-49.</Text>
@@ -286,6 +317,7 @@ export default function PatientScreen() {
 }
 
 const styles = StyleSheet.create({
+  editLink: { alignSelf: 'flex-start', minHeight: MIN_TAP, justifyContent: 'center' },
   screen: { flex: 1, backgroundColor: colors.surfaceContainer },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   errorTitle: { ...type.title, color: colors.onSurface },

@@ -28,7 +28,7 @@ class FakeTimers {
 
 const flushPromises = () => new Promise<void>((r) => setImmediate(() => r()));
 
-function setup(existing?: VisitDetail) {
+function setup(existing?: VisitDetail, edit = false) {
   let clock = Date.parse('2026-11-24T05:00:00.000Z');
   const calls: { id: string; input: VisitDraftInput }[] = [];
   const api = {
@@ -40,7 +40,7 @@ function setup(existing?: VisitDetail) {
   const timers = new FakeTimers();
   const store = new DraftStore(
     api,
-    { visitId: 'v1', patientId: 'p1', existing },
+    { visitId: 'v1', patientId: 'p1', existing, edit },
     () => new Date(clock),
     timers,
   );
@@ -226,5 +226,47 @@ describe('DraftStore', () => {
       ),
     ).toBe('Draft saved 10:45 am');
     expect(saveStatusLine({ ...t.store.state, status: 'saving' }, () => '')).toBe('Saving…');
+  });
+
+  it('edits a signed visit without autosaving, and builds an amendment of what changed (DIG-97)', async () => {
+    const signed = {
+      fields: [
+        { section: 'plan', key: 'advice', value: 'Small meals', source: 'typed', confirmed: true },
+        { section: 'vitals', key: 'pulse', value: '76', source: 'typed', confirmed: true },
+      ],
+      investigations: [],
+      diagnoses: [],
+      followUp: null,
+      signedAt: '2026-11-24T04:00:00.000Z',
+    } as unknown as VisitDetail;
+    const t = setup(signed, true);
+    expect(t.store.state.status).toBe('editing');
+    expect(t.store.amendment('a1')).toBeNull();
+    t.store.setField('plan.advice', 'Small meals; avoid late dinner');
+    t.store.setField('vitals.pulse', '80');
+    t.store.setField('vitals.pulse', '76'); // typed back: not a change
+    t.store.setFollowUp('2026-12-08');
+    await t.timers.advance(SAVE_DEBOUNCE_MS * 2);
+    await t.store.flush();
+    expect(t.api.saveDraft).not.toHaveBeenCalled();
+    expect(t.store.state.unsaved).toBeGreaterThan(0);
+    expect(t.store.amendment('a1', ' Report came back ')).toEqual({
+      id: 'a1',
+      reason: 'Report came back',
+      fields: [
+        {
+          section: 'plan',
+          key: 'advice',
+          value: 'Small meals; avoid late dinner',
+          source: 'typed',
+          confirmed: true,
+        },
+      ],
+      followUp: '2026-12-08',
+    });
+    expect(t.store.amendment('a2', '  ')?.reason).toBeUndefined();
+    t.store.markSigned();
+    t.store.setField('plan.advice', 'x');
+    expect(t.store.value('plan.advice')).toBe('Small meals; avoid late dinner');
   });
 });
