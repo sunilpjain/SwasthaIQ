@@ -70,6 +70,30 @@ export const EXAM_ROWS: TableRow[] = [
   },
 ];
 
+/**
+ * "OD all normal" / "OS all normal" (DIG-98): the normal finding for each examination row.
+ * Tapping fills only empty cells for that eye; nothing is ever filled without a tap, so no
+ * finding is recorded that the doctor didn't choose. Cover test, vision and IOP are not included.
+ */
+export const NORMAL_EXAM: Record<string, string> = {
+  pupil: 'RRR',
+  eye_movements: 'Full',
+  lids: 'Normal',
+  conjunctiva: 'Quiet',
+  cornea: 'Clear',
+  ac: 'Normal depth',
+  iris: 'Normal',
+  lens: 'Clear',
+  fundus: 'Normal',
+};
+
+/** The cells "all normal" would fill for this eye: only rows that are still empty. */
+export function normalFillFor(side: Side, current: (key: string) => string): [string, string][] {
+  return Object.entries(NORMAL_EXAM)
+    .filter(([row]) => !current(eyeKey(side, row)).trim())
+    .map(([row, value]) => [eyeKey(side, row), value]);
+}
+
 export const COVER_TEST_OPTIONS = ['Ortho', 'Esophoria', 'Exophoria', 'Esotropia', 'Exotropia'];
 
 /**
