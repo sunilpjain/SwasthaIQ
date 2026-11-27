@@ -167,6 +167,25 @@
         ]
       }
     },
+    "/patients/{id}/allergies": {
+      "post": {
+        "operationId": "PatientsController_addAllergy",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "patients"
+        ]
+      }
+    },
     "/patients/{id}/conditions/{conditionId}": {
       "patch": {
         "operationId": "PatientsController_updateCondition",

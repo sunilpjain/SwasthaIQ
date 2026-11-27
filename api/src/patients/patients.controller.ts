@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Patient, PatientCondition, PatientDetail } from '@swasthyaiq/shared';
+import type { AllergyList, Patient, PatientCondition, PatientDetail } from '@swasthyaiq/shared';
 import { Audit } from '../audit/audit.interceptor';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
-import { parseConditionInput, parseConditionUpdate } from './condition-input';
+import { parseAllergyInput, parseConditionInput, parseConditionUpdate } from './condition-input';
 import { PatientsService } from './patients.service';
 
 /** Patient search, summary, history and conditions (DIG-40). Doctor role only. */
@@ -41,6 +41,13 @@ export class PatientsController {
     @Body() body: unknown,
   ): Promise<PatientCondition> {
     return this.patients.addCondition(user, id, parseConditionInput(body));
+  }
+
+  /** DIG-99: add an allergy picked or typed in the consult to the patient's list. */
+  @Post(':id/allergies')
+  @Audit('allergy.add')
+  addAllergy(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: unknown): Promise<AllergyList> {
+    return this.patients.addAllergy(id, parseAllergyInput(body).name);
   }
 
   @Patch(':id/conditions/:conditionId')

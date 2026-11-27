@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   KeyboardAvoidingView,
   Pressable,
@@ -36,6 +37,16 @@ import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
+import PhraseChips from '../../consult/PhraseChips';
+import {
+  ALLERGY_CHIPS,
+  appendDuration,
+  COMPLAINT_CHIPS,
+  DURATION_CHIPS,
+  FAMILY_SOCIAL_CHIPS,
+  NO_KNOWN_ALLERGIES,
+  PROCEDURE_CHIPS,
+} from '../../consult/pick-lists';
 import { GastroExamCard, GastroPlanChips } from '../../consult/GastroSections';
 import { addEyeTag } from '../../consult/eye-fields';
 import {
@@ -179,6 +190,25 @@ export default function ConsultScreen() {
       editable={!readOnly}
     />
   );
+
+  /** DIG-99: a picked allergy also goes onto the patient's list (shown on every screen). */
+  async function addAllergy(name: string) {
+    if (name === NO_KNOWN_ALLERGIES || p.allergies.some((a) => a.toLowerCase() === name.toLowerCase()))
+      return;
+    try {
+      const { allergies } = await api.addAllergy(p.id, name);
+      setLoad((l) =>
+        l.status === 'ready'
+          ? { ...l, patient: { ...l.patient, patient: { ...l.patient.patient, allergies } } }
+          : l,
+      );
+    } catch {
+      Alert.alert(
+        'Allergy not added to the list',
+        'It is in the note. Try picking it again when you are online.',
+      );
+    }
+  }
 
   const vitalsCard = (
     <Card title="Vitals">
@@ -329,6 +359,20 @@ export default function ConsultScreen() {
                   onTag={(tag) => d.setField(FIELD.complaint, addEyeTag(d.value(FIELD.complaint), tag))}
                 />
               ) : null}
+              <PhraseChips
+                d={d}
+                field={FIELD.complaint}
+                options={COMPLAINT_CHIPS[specialty]}
+                readOnly={readOnly}
+              />
+              <PhraseChips
+                d={d}
+                field={FIELD.complaint}
+                options={DURATION_CHIPS}
+                readOnly={readOnly}
+                label="Duration"
+                join={appendDuration}
+              />
               {text(
                 FIELD.complaint,
                 eye ? 'Complaint and history (per eye)' : 'Complaint and history',
@@ -344,11 +388,30 @@ export default function ConsultScreen() {
                 'Past medical history',
                 'e.g. Type 2 diabetes for 8 years, on metformin',
               )}
+              <PhraseChips
+                d={d}
+                field={FIELD.procedures}
+                options={PROCEDURE_CHIPS[specialty]}
+                readOnly={readOnly}
+              />
               {text(FIELD.procedures, 'Past procedures and surgeries')}
               <Text style={styles.known}>
                 Known allergies: {p.allergies.length ? p.allergies.join(', ') : 'none recorded'}
               </Text>
+              <PhraseChips
+                d={d}
+                field={FIELD.allergies}
+                options={ALLERGY_CHIPS}
+                readOnly={readOnly}
+                onPick={(a) => void addAllergy(a)}
+              />
               {text(FIELD.allergies, 'Allergy (anything new or more detail)')}
+              <PhraseChips
+                d={d}
+                field={FIELD.familySocial}
+                options={FAMILY_SOCIAL_CHIPS}
+                readOnly={readOnly}
+              />
               {text(
                 FIELD.familySocial,
                 'Family and social history',

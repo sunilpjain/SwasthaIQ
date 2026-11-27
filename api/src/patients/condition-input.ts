@@ -55,3 +55,12 @@ export function parseConditionUpdate(body: unknown): PatientConditionUpdate {
   if (!isObject(body)) bad('body', 'must be a JSON object');
   return { status: status(body.status) };
 }
+
+/** Body of POST /patients/:id/allergies: one allergy name, 1–100 characters. */
+export function parseAllergyInput(body: unknown): { name: string } {
+  if (!isObject(body)) bad('body', 'must be a JSON object');
+  if (typeof body.name !== 'string' || body.name.trim().length === 0) bad('name', 'must not be empty');
+  const name = body.name.trim();
+  if (name.length > 100) bad('name', 'must be at most 100 characters');
+  return { name };
+}

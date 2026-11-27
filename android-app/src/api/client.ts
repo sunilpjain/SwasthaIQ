@@ -1,4 +1,5 @@
 import type {
+  AllergyList,
   DiagnosisFavourite,
   HealthResponse,
   Patient,
@@ -72,6 +73,10 @@ export class ApiClient {
   }
   patient(id: string): Promise<PatientDetail> {
     return this.request('GET', `/patients/${encodeURIComponent(id)}`);
+  }
+  /** DIG-99: adds an allergy to the patient's list (no-op if already there). */
+  addAllergy(patientId: string, name: string): Promise<AllergyList> {
+    return this.request('POST', `/patients/${encodeURIComponent(patientId)}/allergies`, true, { name });
   }
   addCondition(patientId: string, input: PatientConditionInput): Promise<PatientCondition> {
     return this.request('POST', `/patients/${encodeURIComponent(patientId)}/conditions`, true, input);

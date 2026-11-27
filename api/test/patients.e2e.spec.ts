@@ -267,6 +267,50 @@ describe('patient summary, history and conditions (DIG-40)', () => {
     });
   });
 
+  describe('allergies (DIG-99)', () => {
+    it('adds an allergy once, case-insensitively, and audits it', async () => {
+      const url = `/patients/${pid('G5')}/allergies`;
+      const a = await http()
+        .post(url)
+        .set('Authorization', `Bearer ${saiyam}`)
+        .send({ name: ' Penicillins ' })
+        .expect(201);
+      expect(a.body).toEqual({ allergies: ['Penicillins'] });
+      const again = await http()
+        .post(url)
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .send({ name: 'penicillins' })
+        .expect(201);
+      expect(again.body).toEqual({ allergies: ['Penicillins'] });
+      const s = await summary('G5');
+      expect(s.patient.allergies).toEqual(['Penicillins']);
+      const rows = await t.db
+        .selectFrom('audit_log')
+        .select(['action', 'entity_id'])
+        .where('action', '=', 'allergy.add')
+        .execute();
+      expect(rows.map((r) => r.entity_id)).toEqual([pid('G5'), pid('G5')]);
+    });
+
+    it('rejects a bad body, an unknown patient and the admin', async () => {
+      await http()
+        .post(`/patients/${pid('G5')}/allergies`)
+        .set('Authorization', `Bearer ${saiyam}`)
+        .send({ name: ' ' })
+        .expect(400);
+      await http()
+        .post('/patients/00000000-0000-4000-8000-000000000000/allergies')
+        .set('Authorization', `Bearer ${saiyam}`)
+        .send({ name: 'Latex' })
+        .expect(404);
+      await http()
+        .post(`/patients/${pid('G5')}/allergies`)
+        .set('Authorization', `Bearer ${admin}`)
+        .send({ name: 'Latex' })
+        .expect(403);
+    });
+  });
+
   describe('audit', () => {
     it('audits opening the other doctor’s visit, not your own', async () => {
       const eye = seedUuid('visit:E2-v2');

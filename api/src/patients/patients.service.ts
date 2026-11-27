@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type {
+  AllergyList,
   LatestLab,
   Patient,
   PatientCondition,
@@ -145,6 +146,27 @@ export class PatientsService {
       .orderBy('lab_reports.report_date', 'asc')
       .execute();
     return rows.map((r) => ({ date: r.report_date, value: r.value_text, unit: r.unit }));
+  }
+
+  /**
+   * Adds an allergy to the patient's list unless it is already there (case-insensitive).
+   * Either doctor may add one: an allergy is safety information whoever records it (DIG-99).
+   */
+  async addAllergy(patientId: string, name: string): Promise<AllergyList> {
+    assertUuid(patientId, 'Patient');
+    return this.db.transaction().execute(async (trx) => {
+      const p = await trx
+        .selectFrom('patients')
+        .select('allergies')
+        .where('id', '=', patientId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!p) throw new NotFoundException({ code: 'not_found', message: 'Patient not found' });
+      if (p.allergies.some((a) => a.toLowerCase() === name.toLowerCase())) return { allergies: p.allergies };
+      const allergies = [...p.allergies, name];
+      await trx.updateTable('patients').set({ allergies }).where('id', '=', patientId).execute();
+      return { allergies };
+    });
   }
 
   /** Adds a condition (status history starts with its first status). */

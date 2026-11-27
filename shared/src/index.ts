@@ -281,6 +281,16 @@ export interface PatientConditionInput {
   since?: string | null;
 }
 
+/** Body of POST /patients/:id/allergies (DIG-99): adds one allergy to the patient's list. */
+export interface AllergyInput {
+  name: string;
+}
+
+/** The patient's allergy list after the change. */
+export interface AllergyList {
+  allergies: string[];
+}
+
 /** Body of PATCH /patients/:id/conditions/:conditionId. */
 export interface PatientConditionUpdate {
   status: ConditionStatus;
