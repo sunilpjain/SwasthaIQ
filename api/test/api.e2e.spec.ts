@@ -135,23 +135,27 @@ describe('API integration (real PostgreSQL)', () => {
       expect(Math.abs(Date.parse(e.checkedInAt!) - Date.now())).toBeLessThan(60_000);
     });
 
-    it('opening a patient sets In consult; a second doctor gets a warning, not a lock', async () => {
+    it('opening a patient sets In consult; the other doctor can read but not consult (DIG-96)', async () => {
       const r1 = await http().post(`/queue/${G3}/open`).set('Authorization', `Bearer ${saiyam}`).expect(201);
       expect(r1.body.status).toBe('in_consult');
       expect(r1.body.inConsultWithName).toBe('Dr. Saiyam Shah');
+      // G3 is booked with Dr. Saiyam: Dr. Samradnyee is refused, with no override.
       const r2 = await http()
         .post(`/queue/${G3}/open`)
         .set('Authorization', `Bearer ${samradnyee}`)
-        .expect(409);
-      expect(r2.body).toMatchObject({
-        code: 'in_consult_with_other_doctor',
-        inConsultWithName: 'Dr. Saiyam Shah',
-      });
-      const r3 = await http()
+        .expect(403);
+      expect(r2.body.code).toBe('not_your_patient');
+      await http()
         .post(`/queue/${G3}/open?force=true`)
         .set('Authorization', `Bearer ${samradnyee}`)
-        .expect(201);
-      expect(r3.body.status).toBe('in_consult');
+        .expect(403);
+      // ...but reading the patient stays open to both doctors.
+      await http().get(`/patients/${G3}`).set('Authorization', `Bearer ${samradnyee}`).expect(200);
+      // The refusal left the queue as it was.
+      const q = await http().get('/queue').set('Authorization', `Bearer ${saiyam}`).expect(200);
+      expect((q.body as QueueEntry[]).find((e) => e.patient.id === G3)?.inConsultWithName).toBe(
+        'Dr. Saiyam Shah',
+      );
     });
 
     it('404s an unknown patient and 400s a non-UUID', async () => {
@@ -381,8 +385,11 @@ describe('API integration (real PostgreSQL)', () => {
       expect(actions).toEqual(
         expect.arrayContaining(['queue.reset', 'visits.clear_test', 'POST /queue/:patientId/open']),
       );
-      const conflict = res.body.find((r: { status_code: number }) => r.status_code === 409);
-      expect(conflict).toMatchObject({ username: 'samradnyee', entity_id: G3 });
+      const refused = res.body.find(
+        (r: { status_code: number; action: string }) =>
+          r.status_code === 403 && r.action === 'POST /queue/:patientId/open',
+      );
+      expect(refused).toMatchObject({ username: 'samradnyee', entity_id: G3 });
       expect(res.body.every((r: { at: string }) => Boolean(r.at))).toBe(true);
     });
 

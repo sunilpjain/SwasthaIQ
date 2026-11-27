@@ -60,8 +60,8 @@ export class ApiClient {
   queue(): Promise<QueueEntry[]> {
     return this.request('GET', '/queue');
   }
-  openConsult(patientId: string, force = false): Promise<QueueEntry> {
-    return this.request('POST', `/queue/${encodeURIComponent(patientId)}/open${force ? '?force=true' : ''}`);
+  openConsult(patientId: string): Promise<QueueEntry> {
+    return this.request('POST', `/queue/${encodeURIComponent(patientId)}/open`);
   }
   /** Doctor's "Reset queue": everyone back to Waiting with fresh times. Never deletes visits. */
   resetQueue(): Promise<QueueResetResult> {

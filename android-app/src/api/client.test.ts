@@ -49,10 +49,10 @@ describe('ApiClient', () => {
     const f = fakeFetch(200, []);
     const api = new ApiClient('https://api.test', async () => 't', f.impl);
     await api.searchPatients('Kanta ben');
-    await api.openConsult('a/b', true);
+    await api.openConsult('a/b');
     expect(f.calls.map((c) => c.url)).toEqual([
       'https://api.test/patients?q=Kanta%20ben',
-      'https://api.test/queue/a%2Fb/open?force=true',
+      'https://api.test/queue/a%2Fb/open',
     ]);
   });
 });
@@ -114,16 +114,26 @@ describe('ApiClient queue actions (DIG-47)', () => {
     expect(f.calls[0]?.url).toBe('https://api.test/queue/reset');
   });
 
-  it('passes the other doctor’s name from a 409 through as details', async () => {
-    const f = fakeFetch(409, {
-      code: 'in_consult_with_other_doctor',
-      message: 'Another doctor has this patient open',
-      inConsultWithName: 'Dr. Saiyam Shah',
+  it('opens a consult with a plain POST, and reports the other doctor’s patient as not_your_patient (DIG-96)', async () => {
+    const ended: string[] = [];
+    const f = fakeFetch(403, {
+      code: 'not_your_patient',
+      message: 'This patient is booked with another doctor',
     });
-    const api = new ApiClient('https://api.test', async () => 'tok', f.impl);
+    const api = new ApiClient(
+      'https://api.test',
+      async () => 'tok',
+      f.impl,
+      15_000,
+      (c) => {
+        ended.push(c);
+      },
+    );
     const err = (await api.openConsult('p1').catch((x: unknown) => x)) as ApiError;
-    expect(err.code).toBe('in_consult_with_other_doctor');
-    expect(err.details).toEqual({ inConsultWithName: 'Dr. Saiyam Shah' });
+    expect(f.calls[0]?.url).toBe('https://api.test/queue/p1/open');
+    expect(f.calls[0]?.init.method).toBe('POST');
+    expect(err.code).toBe('not_your_patient');
+    expect(ended).toEqual([]); // a refusal, not a sign-out
   });
 });
 

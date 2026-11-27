@@ -21,6 +21,7 @@ import type {
 } from '@swasthyaiq/shared';
 import { sql, type Transaction } from 'kysely';
 import type { AuthUser } from '../auth/auth.decorators';
+import { notYourPatient } from '../clinic/clinic.service';
 import { IST_OFFSET_MS } from '../clinic/queue-schedule';
 import { DB, type Db } from '../db/database';
 import type { Database } from '../db/schema';
@@ -81,10 +82,12 @@ export class VisitsService {
       await this.db.transaction().execute(async (trx) => {
         const patient = await trx
           .selectFrom('patients')
-          .select('id')
+          .select(['id', 'primary_doctor_id'])
           .where('id', '=', input.patientId)
           .executeTakeFirst();
         if (!patient) throw new NotFoundException({ code: 'not_found', message: 'Patient not found' });
+        // DIG-96: only the patient's own doctor writes their consult notes.
+        if (patient.primary_doctor_id !== user.id) throw notYourPatient();
 
         await trx
           .insertInto('visits')

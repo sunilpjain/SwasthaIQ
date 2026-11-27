@@ -1,10 +1,14 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { sortQueue, type QueueEntry, type QueueResetResult, type UserSummary } from '@swasthyaiq/shared';
 import { sql } from 'kysely';
 import { DB, type Db } from '../db/database';
 import { resetQueue } from '../seed/seed';
 import type { AuthUser } from '../auth/auth.decorators';
 import { assertUuid, PATIENT_COLS, toPatient } from '../patients/patient-row';
+
+/** DIG-96: a doctor may read every patient but consult only their own. */
+export const notYourPatient = () =>
+  new ForbiddenException({ code: 'not_your_patient', message: 'This patient is booked with another doctor' });
 
 @Injectable()
 export class ClinicService {
@@ -60,27 +64,20 @@ export class ClinicService {
   }
 
   /**
-   * Marks a patient as "In consult" with this doctor. A second doctor opening the
-   * same patient gets a warning (409 with details) unless they pass force=true — never a lock.
-   * Opening a patient who has not arrived checks them in now (doctors may test any case).
+   * Marks a patient as "In consult" with this doctor. Only the patient's own doctor may consult
+   * them (DIG-96): the other doctor can read the summary and history but gets 403 here.
+   * Opening a patient who has not arrived checks them in now.
    */
-  async openConsult(user: AuthUser, patientId: string, force: boolean): Promise<QueueEntry> {
+  async openConsult(user: AuthUser, patientId: string): Promise<QueueEntry> {
     assertUuid(patientId, 'Patient');
     const entry = await this.db
       .selectFrom('queue_entries')
-      .leftJoin('users', 'users.id', 'queue_entries.in_consult_with')
-      .select(['queue_entries.status', 'queue_entries.in_consult_with', 'users.display_name'])
+      .innerJoin('patients', 'patients.id', 'queue_entries.patient_id')
+      .select(['queue_entries.status', 'patients.primary_doctor_id'])
       .where('queue_entries.patient_id', '=', patientId)
       .executeTakeFirst();
     if (!entry) throw new NotFoundException({ code: 'not_found', message: 'Patient not in queue' });
-    if (entry.status === 'in_consult' && entry.in_consult_with !== user.id && !force) {
-      throw new ConflictException({
-        code: 'in_consult_with_other_doctor',
-        message: 'Another doctor has this patient open',
-        inConsultWithUserId: entry.in_consult_with,
-        inConsultWithName: entry.display_name,
-      });
-    }
+    if (entry.primary_doctor_id !== user.id) throw notYourPatient();
     await this.db
       .updateTable('queue_entries')
       .set({

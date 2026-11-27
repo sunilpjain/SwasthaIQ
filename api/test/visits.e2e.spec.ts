@@ -119,7 +119,12 @@ describe('visits and consult note (DIG-41)', () => {
 
     it('rejects another doctor, another patient, an unknown patient and a bad body', async () => {
       const other = await put(V1, samradnyee, { patientId: G3 }).expect(403);
-      expect(other.body.code).toBe('not_your_visit');
+      expect(other.body.code).toBe('not_your_patient'); // checked before the visit's owner (DIG-96)
+      // DIG-96: a doctor can't start a note for the other doctor's patient (E3 is Dr. Samradnyee's).
+      const notMine = await put('a1b2c3d4-0000-4000-8000-0000000000f0', saiyam, {
+        patientId: seedUuid('patient:E3'),
+      }).expect(403);
+      expect(notMine.body.code).toBe('not_your_patient');
       const mismatch = await put(V1, saiyam, { patientId: G4 }).expect(409);
       expect(mismatch.body.code).toBe('patient_mismatch');
       await put(V2, saiyam, { patientId: '00000000-0000-4000-8000-000000000000' }).expect(404);

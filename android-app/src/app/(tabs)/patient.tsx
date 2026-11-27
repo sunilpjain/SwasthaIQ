@@ -104,6 +104,8 @@ export default function PatientScreen() {
     ? visitStatusLine(istTime(entry.appointmentAt), entry.checkedInAt ? istTime(entry.checkedInAt) : null)
     : null;
   const withMe = entry?.status === 'in_consult' && entry.inConsultWithUserId === myId;
+  // DIG-96: the other doctor's patients are view-only.
+  const mine = p.primaryDoctorId === myId;
   const shared = sharedLabel(d.visits, myId);
   const meds = currentMedicineRows(d.currentMedicines, myId);
   const last = lastVisitLines(d, myId);
@@ -233,14 +235,22 @@ export default function PatientScreen() {
             Timeline
           </Text>
         </Pressable>
-        <Pressable
-          style={[styles.primaryButton, { flex: 1.3 }, starting && { opacity: 0.6 }]}
-          onPress={() => void startConsult()}
-          disabled={starting}
-          accessibilityRole="button"
-        >
-          <Text style={styles.primaryText}>{withMe ? 'Continue consult' : 'Start consult'}</Text>
-        </Pressable>
+        {mine ? (
+          <Pressable
+            style={[styles.primaryButton, { flex: 1.3 }, starting && { opacity: 0.6 }]}
+            onPress={() => void startConsult()}
+            disabled={starting}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryText}>{withMe ? 'Continue consult' : 'Start consult'}</Text>
+          </Pressable>
+        ) : (
+          <View style={[styles.viewOnly, { flex: 1.3 }]} accessibilityRole="text">
+            <Text style={styles.viewOnlyText}>
+              Booked with {entry?.doctorName ?? 'the other doctor'} · view only
+            </Text>
+          </View>
+        )}
       </View>
 
       <Modal visible={timelineOpen} animationType="slide" onRequestClose={() => setTimelineOpen(false)}>
@@ -349,4 +359,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   primaryText: { ...type.labelLarge, color: colors.onPrimary },
+  viewOnly: {
+    minHeight: MIN_TAP,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  viewOnlyText: { ...type.label, color: colors.onSurfaceVariant, textAlign: 'center' },
 });
