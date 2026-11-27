@@ -532,6 +532,7 @@ export class VisitsService {
       status: v.status,
       version: Number(v.version),
       diagnosis: v.diagnosis,
+      diagnosisCode: v.icd10_code,
       isSeed: v.is_seed,
       signedAt: v.signed_at?.toISOString() ?? null,
       followUp: v.follow_up,

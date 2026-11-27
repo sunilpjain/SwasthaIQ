@@ -131,6 +131,8 @@ export interface VisitSummary {
   status: VisitStatus;
   version: number;
   diagnosis: string | null;
+  /** ICD-10 code of the primary diagnosis, when coded (DIG-100). */
+  diagnosisCode: string | null;
   isSeed: boolean;
 }
 

@@ -308,6 +308,7 @@ export class PatientsService {
         'visits.status',
         currentVersion.as('version'),
         'visits.diagnosis',
+        'visits.icd10_code',
         'visits.is_seed',
       ])
       .where('visits.patient_id', '=', patientId)
@@ -324,6 +325,7 @@ export class PatientsService {
       status: r.status,
       version: Number(r.version),
       diagnosis: r.diagnosis,
+      diagnosisCode: r.icd10_code,
       isSeed: r.is_seed,
     }));
   }

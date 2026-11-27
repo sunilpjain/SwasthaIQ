@@ -37,6 +37,7 @@ import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
+import { suggestDiagnoses } from '../../consult/icd10/suggestions';
 import PhraseChips from '../../consult/PhraseChips';
 import {
   ALLERGY_CHIPS,
@@ -458,6 +459,14 @@ export default function ConsultScreen() {
                 specialty={specialty}
                 today={followUpDate(0, now)}
                 readOnly={readOnly}
+                suggestions={suggestDiagnoses({
+                  specialty,
+                  fields: state.fields,
+                  conditions: load.patient.conditions,
+                  visits: load.patient.visits,
+                  chosen: state.diagnoses,
+                  myUserId: me.id,
+                })}
               />
               {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
             </Card>
