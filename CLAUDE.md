@@ -32,6 +32,11 @@ pnpm synth                    # cdk synth for all stacks
 - **Android app** → HTTPS `api.swasthyaiq.in` (demo) / `dev-api.…` (dev) → **Caddy** on one **EC2 t4g.small** (Elastic IP, no load balancer) → **NestJS in Docker** → **RDS PostgreSQL** (db.t4g.micro, isolated subnet, no NAT).
 - **Login:** Cognito user pool, 3 fixed users (`saiyam`, `samradnyee` = doctor; `admin` = admin), no self sign-up, case-insensitive user IDs. Refresh token 7 days with rotation, so the session slides while in use. The API checks every access token (signature, issuer, client, `token_use=access`), the Cognito group against the DB role, `users.enabled`, and `session_revocations` (remote sign-out). Status is cached for at most 30 s.
 - **Background jobs:** SQS (+ DLQ, 3 retries) and a worker on the same server. **Files:** private S3, 5-minute presigned links. **AI:** Sarvam (speech), Transcribe (comparison), Textract (OCR), Bedrock (structuring).
+- **AI model choices (DIG-23, DIG-25; details in `docs/spikes/`):**
+  - LLM: Claude Opus 5 via Bedrock inference profile `in.anthropic.claude-opus-5`. It routes only within India (ap-south-1, ap-south-2). Call it with the `AnthropicBedrock` client (InvokeModel) from `@anthropic-ai/bedrock-sdk`; the Bedrock Mantle endpoint isn't available in ap-south-1. Use structured outputs (`output_config.format`) for JSON.
+  - Don't use `global.*` or other cross-region profiles. They are allowed only if a needed model has no `in.*` profile, only with synthetic data, and only with the decision recorded here.
+  - OCR: Textract `AnalyzeDocument` with `TABLES`, in ap-south-1.
+  - Speech: Sarvam `saaras:v4` realtime WebSocket with `language_code=auto`, `mode=codemix` and `stream_type=fast`. No shared `keyterms` list: it put gastro terms into an eye consult (DIG-25).
 - **Secrets:** Secrets Manager only (DB credentials, Sarvam key). Read at start-up by `api/src/config/config.ts`.
 
 ## Data model rules (api/migrations)
