@@ -36,7 +36,7 @@ pnpm synth                    # cdk synth for all stacks
   - LLM: Claude Opus 5 via Bedrock inference profile `in.anthropic.claude-opus-5`. It routes only within India (ap-south-1, ap-south-2). Call it with the `AnthropicBedrock` client (InvokeModel) from `@anthropic-ai/bedrock-sdk`; the Bedrock Mantle endpoint isn't available in ap-south-1. Use structured outputs (`output_config.format`) for JSON.
   - Don't use `global.*` or other cross-region profiles. They are allowed only if a needed model has no `in.*` profile, only with synthetic data, and only with the decision recorded here.
   - OCR: Textract `AnalyzeDocument` with `TABLES`, in ap-south-1.
-  - Speech: Sarvam `saaras:v4` realtime WebSocket with `language_code=auto`, `mode=codemix`, `keyterms` and `stream_type=fast`.
+  - Speech: Sarvam `saaras:v4` realtime WebSocket with `language_code=auto`, `mode=codemix` and `stream_type=fast`. No shared `keyterms` list: it put gastro terms into an eye consult (DIG-25).
 - **Secrets:** Secrets Manager only (DB credentials, Sarvam key). Read at start-up by `api/src/config/config.ts`.
 
 ## Data model rules (api/migrations)

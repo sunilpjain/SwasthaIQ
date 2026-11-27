@@ -202,6 +202,21 @@ describe('DIG-34 least-privilege IAM, secrets and admin hosting', () => {
     );
     expect([...actions].some((a) => a.endsWith(':*') || a === '*')).toBe(false);
   });
+  it('Bedrock is limited to India: models in ap-south-1/2 and in.* profiles only (DIG-23)', () => {
+    const policies = t.server.findResources('AWS::IAM::Policy');
+    const bedrock = Object.values(policies)
+      .flatMap((p) => p.Properties.PolicyDocument.Statement)
+      .filter((st: { Sid?: string }) => st.Sid === 'Bedrock');
+    expect(bedrock).toHaveLength(1);
+    const resources = JSON.stringify(bedrock[0].Resource);
+    expect(resources).toContain('arn:aws:bedrock:ap-south-1::foundation-model/*');
+    expect(resources).toContain('arn:aws:bedrock:ap-south-2::foundation-model/*');
+    expect(resources).toContain(':inference-profile/in.*');
+    // No wildcard region, and no global.* / other cross-region profiles.
+    expect(resources).not.toContain('arn:aws:bedrock:*');
+    expect(resources).not.toContain('inference-profile/*');
+    expect([].concat(bedrock[0].Resource)).toHaveLength(3);
+  });
   it('admin site is private S3 behind CloudFront (OAC), HTTPS only', () => {
     t.web.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({

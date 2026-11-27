@@ -26,6 +26,9 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct, IConstruct } from 'constructs';
 import { prefix, REGION, type DnsConfig, type EnvConfig } from './config';
 
+/** Regions the India-only Bedrock inference profiles (in.*) route to. */
+export const BEDROCK_REGIONS = ['ap-south-1', 'ap-south-2'] as const;
+
 export interface ServerStackProps extends StackProps {
   config: EnvConfig;
   vpc: ec2.IVpc;
@@ -87,10 +90,12 @@ export class ServerStack extends Stack {
           'bedrock:Converse',
           'bedrock:ConverseStream',
         ],
+        // India only (DIG-23 / DIG-34): Claude is called through the in.* inference profile, which
+        // routes between ap-south-1 and ap-south-2. global.* and other cross-region profiles are
+        // refused here, not just by convention (CLAUDE.md "AI model choices").
         resources: [
-          `arn:aws:bedrock:${REGION}::foundation-model/*`,
-          `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
-          'arn:aws:bedrock:*::foundation-model/*', // cross-region inference profiles route to other regions' models
+          ...BEDROCK_REGIONS.map((r) => `arn:aws:bedrock:${r}::foundation-model/*`),
+          `arn:aws:bedrock:${REGION}:${this.account}:inference-profile/in.*`,
         ],
       }),
     );
