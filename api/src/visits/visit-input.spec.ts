@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { LIMITS, parseAmendment, parseDiagnoses, parseDraft, parseInvestigations } from './visit-input';
-import { clampToNow, istToday } from './visits.service';
+import { clampToNow, isSameDayEdit, istToday } from './visits.service';
 
 const PATIENT = '11111111-1111-4111-8111-111111111111';
 const AT = '2026-11-23T10:00:00.000Z';
@@ -251,12 +251,20 @@ describe('parseAmendment', () => {
     expect(a.fields).toHaveLength(1);
   });
 
+  it('accepts a same-day edit without a reason, and tests or follow-up alone (DIG-97)', () => {
+    const a = parseAmendment({ id: ID, investigations: [{ testName: 'LFT' }], followUp: null });
+    expect(a.reason).toBeUndefined();
+    expect(a.investigations).toEqual([{ testName: 'LFT', testCode: null }]);
+    expect(a.followUp).toBeNull();
+    expect(parseAmendment({ id: ID, followUp: '2026-12-07' }).followUp).toBe('2026-12-07');
+  });
+
   it.each<[string, unknown, RegExp]>([
     ['not an object', null, /^body must be a JSON object/],
     ['bad id', { id: 'x', reason: 'r', fields: [amendField] }, /^id must be a UUID/],
     ['no reason', { id: ID, reason: ' ', fields: [amendField] }, /reason must not be empty/],
-    ['no changes', { id: ID, reason: 'r' }, /at least one field or the diagnoses/],
-    ['empty fields', { id: ID, reason: 'r', fields: [] }, /at least one field or the diagnoses/],
+    ['no changes', { id: ID, reason: 'r' }, /at least one field, the diagnoses/],
+    ['empty fields', { id: ID, reason: 'r', fields: [] }, /at least one field, the diagnoses/],
     ['empty diagnoses', { id: ID, reason: 'r', diagnoses: [] }, /must not be empty/],
     [
       'unconfirmed field',
@@ -273,6 +281,11 @@ describe('time helpers', () => {
   it('gives the IST date, which turns over at 18:30 UTC', () => {
     expect(istToday(new Date('2026-11-23T18:29:59Z'))).toBe('2026-11-23');
     expect(istToday(new Date('2026-11-23T18:30:00Z'))).toBe('2026-11-24');
+    // DIG-97: same IST day as the signing, so no reason needed; midnight IST ends it.
+    const signed = new Date('2026-11-23T10:00:00Z');
+    expect(isSameDayEdit(signed, new Date('2026-11-23T18:29:59Z'))).toBe(true);
+    expect(isSameDayEdit(signed, new Date('2026-11-23T18:30:00Z'))).toBe(false);
+    expect(isSameDayEdit(null, signed)).toBe(false);
   });
   it('never treats a device time as later than now', () => {
     const now = new Date('2026-11-23T10:00:00Z');

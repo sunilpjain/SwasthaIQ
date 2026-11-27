@@ -131,6 +131,10 @@ export interface VisitSummary {
   status: VisitStatus;
   version: number;
   diagnosis: string | null;
+  /** ICD-10 code of the primary diagnosis, when coded (DIG-100). */
+  diagnosisCode: string | null;
+  /** When the latest version was saved, if the signed note was edited (DIG-97); else null. */
+  editedAt: string | null;
   isSeed: boolean;
 }
 
@@ -144,7 +148,10 @@ export interface VisitDetail extends VisitSummary {
   fields: ConsultField[];
   rxLines: RxLine[];
   labReports: LabReport[];
-  /** Additions made after signing, oldest first. The signed note itself never changes. */
+  /**
+   * Edits made after signing, oldest first (DIG-97). The signed rows never change; the fields,
+   * diagnoses, investigations and follow-up above are the latest version (amendments applied).
+   */
   amendments: VisitAmendment[];
 }
 
@@ -224,12 +231,19 @@ export interface VisitDraftInput {
   followUp?: string | null;
 }
 
-/** Body of POST /visits/:id/amendments. `id` is picked by the app so a retried call is idempotent. */
+/**
+ * Body of POST /visits/:id/amendments. `id` is picked by the app so a retried call is idempotent.
+ * Only what changed is sent; lists (diagnoses, investigations) replace the whole list.
+ */
 export interface VisitAmendmentInput {
   id: string;
-  reason: string;
+  /** Optional on the day the visit was signed (IST): recorded as "Same-day edit". Required after. */
+  reason?: string;
   fields?: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses?: Diagnosis[];
+  investigations?: InvestigationOrder[];
+  /** ISO date, or null to clear. */
+  followUp?: string | null;
 }
 
 export interface VisitAmendment {
@@ -241,6 +255,9 @@ export interface VisitAmendment {
   reason: string;
   fields: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses: Diagnosis[] | null;
+  investigations: InvestigationOrder[] | null;
+  /** Absent when the follow-up was not changed. */
+  followUp?: string | null;
   createdAt: string;
 }
 
@@ -279,6 +296,16 @@ export interface PatientConditionInput {
   icd10Code?: string | null;
   status: ConditionStatus;
   since?: string | null;
+}
+
+/** Body of POST /patients/:id/allergies (DIG-99): adds one allergy to the patient's list. */
+export interface AllergyInput {
+  name: string;
+}
+
+/** The patient's allergy list after the change. */
+export interface AllergyList {
+  allergies: string[];
 }
 
 /** Body of PATCH /patients/:id/conditions/:conditionId. */

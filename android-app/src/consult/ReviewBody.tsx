@@ -119,22 +119,33 @@ export function ReviewBody({
 /** After signing: locked, patient moved to Done, visit in history. */
 export function SignedBody({
   signedAt,
+  version = 1,
   onQueue,
   onPatient,
+  onEditNote,
 }: {
+  /** Time of the sign, or of the edit for version 2 and later. */
   signedAt: string;
+  version?: number;
   onQueue: () => void;
   onPatient: () => void;
+  /** DIG-97: reopen the note; the change is saved as the next version. */
+  onEditNote?: () => void;
 }) {
+  const edited = version > 1;
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.signed} accessibilityRole="alert">
-        <Text style={styles.signedTitle}>✓ Signed and saved</Text>
+        <Text style={styles.signedTitle}>{edited ? '✓ Edit saved' : '✓ Signed and saved'}</Text>
         <Text style={styles.signedBody}>
-          Version 1 · signed {signedAt}. The visit is locked; changes now go in an amendment.
+          {edited
+            ? `Version ${version} · edited ${signedAt}. Earlier versions are kept.`
+            : `Version 1 · signed ${signedAt}. The signed version is kept; edits are saved as new versions.`}
         </Text>
         <Text style={styles.signedBody}>
-          The patient has moved to Done and the visit is in their history.
+          {edited
+            ? 'Everyone now sees this version. The patient stays Done.'
+            : 'The patient has moved to Done and the visit is in their history.'}
         </Text>
       </View>
       <Pressable style={styles.primary} onPress={onQueue} accessibilityRole="button">
@@ -143,6 +154,11 @@ export function SignedBody({
       <Pressable style={styles.outline} onPress={onPatient} accessibilityRole="button">
         <Text style={styles.outlineText}>Patient summary</Text>
       </Pressable>
+      {onEditNote ? (
+        <Pressable style={styles.outline} onPress={onEditNote} accessibilityRole="button">
+          <Text style={styles.outlineText}>Edit note</Text>
+        </Pressable>
+      ) : null}
       <Text style={styles.note}>The A4 PDF, print and share arrive with DIG-73.</Text>
     </ScrollView>
   );

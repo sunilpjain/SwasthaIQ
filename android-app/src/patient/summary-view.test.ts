@@ -43,6 +43,8 @@ const visit = (o: Partial<VisitSummary>): VisitSummary => ({
   status: 'signed',
   version: 1,
   diagnosis: 'Early cataract OU',
+  diagnosisCode: 'H25.13',
+  editedAt: null,
   isSeed: true,
   ...o,
 });

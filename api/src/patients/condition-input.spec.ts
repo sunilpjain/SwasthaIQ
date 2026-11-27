@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { parseConditionInput, parseConditionUpdate } from './condition-input';
+import { parseAllergyInput, parseConditionInput, parseConditionUpdate } from './condition-input';
 
 function message(fn: () => unknown): string {
   try {
@@ -62,5 +62,14 @@ describe('parseConditionUpdate', () => {
   it('rejects anything else', () => {
     expect(message(() => parseConditionUpdate(null))).toMatch(/^body/);
     expect(message(() => parseConditionUpdate({ status: 'gone' }))).toMatch(/^status/);
+  });
+});
+
+describe('parseAllergyInput (DIG-99)', () => {
+  it('trims the name and rejects empty or long names', () => {
+    expect(parseAllergyInput({ name: ' Latex ' })).toEqual({ name: 'Latex' });
+    expect(message(() => parseAllergyInput({ name: '' }))).toMatch(/^name must not be empty/);
+    expect(message(() => parseAllergyInput({ name: 'x'.repeat(101) }))).toMatch(/at most 100/);
+    expect(message(() => parseAllergyInput(null))).toMatch(/^body/);
   });
 });

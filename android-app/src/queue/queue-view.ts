@@ -133,7 +133,8 @@ export function syncLine(online: boolean, lastSyncedAt: string | null): string {
   return online ? `Online · synced ${t} · pull down to refresh` : `Offline · showing the queue from ${t}`;
 }
 
-/** What tapping a row does: Done patients are only viewed; anyone else is opened for a consult. */
+/** What tapping a row does: own patients who aren't Done open a consult; everything else opens the summary. */
 export function tapAction(e: QueueEntry): 'view' | 'open' {
-  return e.status === 'done' ? 'view' : 'open';
+  // Done patients are only viewed; the other doctor's patients are view-only (DIG-96).
+  return e.status === 'done' || !e.isMine ? 'view' : 'open';
 }

@@ -119,7 +119,12 @@ describe('visits and consult note (DIG-41)', () => {
 
     it('rejects another doctor, another patient, an unknown patient and a bad body', async () => {
       const other = await put(V1, samradnyee, { patientId: G3 }).expect(403);
-      expect(other.body.code).toBe('not_your_visit');
+      expect(other.body.code).toBe('not_your_patient'); // checked before the visit's owner (DIG-96)
+      // DIG-96: a doctor can't start a note for the other doctor's patient (E3 is Dr. Samradnyee's).
+      const notMine = await put('a1b2c3d4-0000-4000-8000-0000000000f0', saiyam, {
+        patientId: seedUuid('patient:E3'),
+      }).expect(403);
+      expect(notMine.body.code).toBe('not_your_patient');
       const mismatch = await put(V1, saiyam, { patientId: G4 }).expect(409);
       expect(mismatch.body.code).toBe('patient_mismatch');
       await put(V2, saiyam, { patientId: '00000000-0000-4000-8000-000000000000' }).expect(404);
@@ -218,12 +223,22 @@ describe('visits and consult note (DIG-41)', () => {
         .set('Authorization', `Bearer ${tok}`)
         .send(body as object);
 
-    it('adds a dated amendment and keeps the signed note as it was', async () => {
+    it('adds a dated amendment, shows the latest version and keeps the signed rows as they were', async () => {
       const res = await amend(V1, saiyam, amendment).expect(200);
       const v = res.body as VisitDetail;
       expect(v.version).toBe(2);
-      expect(v.diagnoses.map((d) => d.label)).toEqual(['GERD', 'Anxiety']); // original kept
-      expect(v.fields.find((f) => f.key === 'advice')).toBeUndefined();
+      // DIG-97: the record shows the latest version…
+      expect(v.diagnoses.map((d) => d.label)).toEqual(['GERD', 'NAFLD']);
+      expect(v.fields.find((f) => f.key === 'advice')?.value).toBe('Repeat LFT in 4 weeks');
+      expect(v.editedAt).toEqual(expect.any(String));
+      // …while the signed rows are untouched.
+      const rows = await t.db
+        .selectFrom('visit_diagnoses')
+        .select('label')
+        .where('visit_id', '=', V1)
+        .orderBy('position')
+        .execute();
+      expect(rows.map((r) => r.label)).toEqual(['GERD', 'Anxiety']);
       expect(v.amendments).toEqual([
         {
           id: A1,
@@ -240,11 +255,40 @@ describe('visits and consult note (DIG-41)', () => {
             eye: null,
             diagnosedOn: null,
           })),
+          investigations: null,
           createdAt: expect.any(String),
         },
       ]);
       const p = await http().get(`/patients/${G3}`).set('Authorization', `Bearer ${saiyam}`).expect(200);
-      expect(p.body.visits.find((x: { id: string }) => x.id === V1).version).toBe(2);
+      const listed = p.body.visits.find((x: { id: string }) => x.id === V1);
+      expect(listed).toMatchObject({ version: 2, diagnosis: 'GERD', diagnosisCode: 'K21.0' });
+      expect(listed.editedAt).toEqual(expect.any(String));
+    });
+
+    it('needs no reason on the signing day, and records it as "Same-day edit" (DIG-97)', async () => {
+      const res = await amend(V1, saiyam, {
+        id: 'a1b2c3d4-0000-4000-8000-0000000000b1',
+        diagnoses: [{ kind: 'icd10', icd10Code: 'K76.0', label: 'NAFLD' }, gerd],
+        investigations: [{ testName: 'Ultrasound abdomen', testCode: null }],
+        followUp: '2026-12-21',
+      }).expect(200);
+      const v = res.body as VisitDetail;
+      expect(v.amendments.at(-1)).toMatchObject({ reason: 'Same-day edit', followUp: '2026-12-21' });
+      expect(v.investigations).toEqual([{ testName: 'Ultrasound abdomen', testCode: null }]);
+      expect(v.followUp).toBe('2026-12-21');
+      const p = await http().get(`/patients/${G3}`).set('Authorization', `Bearer ${saiyam}`).expect(200);
+      expect(p.body.visits.find((x: { id: string }) => x.id === V1)).toMatchObject({
+        diagnosis: 'NAFLD',
+        diagnosisCode: 'K76.0',
+      });
+    });
+
+    it('needs a reason for a visit signed on an earlier day', async () => {
+      const res = await amend(seedUuid('visit:G1-v1'), saiyam, {
+        id: 'a1b2c3d4-0000-4000-8000-0000000000b2',
+        followUp: null,
+      }).expect(422);
+      expect(res.body.code).toBe('reason_required');
     });
 
     it('is idempotent on the amendment id, and versions further amendments', async () => {
@@ -254,8 +298,8 @@ describe('visits and consult note (DIG-41)', () => {
         reason: 'Typo',
         diagnoses: [gerd],
       }).expect(200);
-      expect(second.body.amendments.map((a: { version: number }) => a.version)).toEqual([2, 3]);
-      expect(second.body.version).toBe(3);
+      expect(second.body.amendments.map((a: { version: number }) => a.version)).toEqual([2, 3, 4]);
+      expect(second.body.version).toBe(4);
     });
 
     it('refuses drafts, other doctors, reused ids and bad bodies', async () => {

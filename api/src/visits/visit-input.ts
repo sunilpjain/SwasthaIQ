@@ -207,10 +207,9 @@ export function parseDraft(body: unknown): VisitDraftInput {
 export function parseAmendment(body: unknown): VisitAmendmentInput {
   if (!isObject(body)) bad('body', 'must be a JSON object');
   if (typeof body.id !== 'string' || !UUID_RE.test(body.id)) bad('id', 'must be a UUID');
-  const out: VisitAmendmentInput = {
-    id: body.id,
-    reason: str(body, 'reason', 'body', LIMITS.reasonChars).trim(),
-  };
+  const out: VisitAmendmentInput = { id: body.id };
+  // DIG-97: the reason may be left out; the service decides whether one is needed.
+  if (body.reason !== undefined) out.reason = str(body, 'reason', 'body', LIMITS.reasonChars).trim();
   if (body.fields !== undefined) {
     out.fields = array(body.fields, 'fields', LIMITS.fields).map((f, i) => {
       const field = amendField(f, `fields[${i}]`);
@@ -223,6 +222,14 @@ export function parseAmendment(body: unknown): VisitAmendmentInput {
     out.diagnoses = parseDiagnoses(body.diagnoses, 'diagnoses');
     if (out.diagnoses.length === 0) bad('diagnoses', 'must not be empty; a signed visit keeps at least one');
   }
-  if (!out.fields?.length && !out.diagnoses) bad('body', 'must change at least one field or the diagnoses');
+  if (body.investigations !== undefined) {
+    out.investigations = parseInvestigations(body.investigations, 'investigations');
+  }
+  if (body.followUp !== undefined) {
+    out.followUp = body.followUp === null ? null : isoDate(body.followUp, 'followUp');
+  }
+  if (!out.fields?.length && !out.diagnoses && !out.investigations && out.followUp === undefined) {
+    bad('body', 'must change at least one field, the diagnoses, the tests or the follow-up');
+  }
   return out;
 }

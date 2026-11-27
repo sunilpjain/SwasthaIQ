@@ -2,6 +2,7 @@ import type {
   CaptureSource,
   Diagnosis,
   InvestigationOrder,
+  VisitAmendmentInput,
   VisitDetail,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -26,7 +27,8 @@ export interface DraftField {
   updatedAt: string;
 }
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'offline' | 'error' | 'signed';
+/** 'editing': a signed visit reopened for an edit (DIG-97); nothing autosaves, the edit is saved as a new version. */
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'offline' | 'error' | 'signed' | 'editing';
 
 export interface DraftState {
   visitId: string;
@@ -64,10 +66,13 @@ export class DraftStore {
   private timer: unknown = null;
   private saving: Promise<void> | null = null;
   private again = false;
+  /** DIG-97: editing a signed visit. Edits stay on the phone until saved as an amendment. */
+  private readonly editing: boolean;
+  private readonly original: Pick<DraftState, 'fields' | 'investigations' | 'diagnoses' | 'followUp'>;
 
   constructor(
     private readonly api: DraftApi,
-    init: { visitId: string; patientId: string; existing?: VisitDetail },
+    init: { visitId: string; patientId: string; existing?: VisitDetail; edit?: boolean },
     private readonly now: () => Date = () => new Date(),
     private readonly timers: Timers = realTimers,
   ) {
@@ -87,10 +92,37 @@ export class DraftStore {
       investigations: init.existing?.investigations ?? [],
       diagnoses: init.existing?.diagnoses ?? [],
       followUp: init.existing?.followUp ?? null,
-      status: init.existing ? 'saved' : 'idle',
+      status: init.edit ? 'editing' : init.existing ? 'saved' : 'idle',
       lastSavedAt: null,
       unsaved: 0,
     };
+    this.editing = !!init.edit;
+    const { fields: f, investigations, diagnoses, followUp } = this.current;
+    this.original = { fields: f, investigations, diagnoses, followUp };
+  }
+
+  /**
+   * DIG-97: what changed since the signed (or latest) version, as an amendment body; null when
+   * nothing changed. Fields typed back to their old value don't count.
+   */
+  amendment(id: string, reason?: string): VisitAmendmentInput | null {
+    const o = this.original;
+    const c = this.current;
+    const input: VisitAmendmentInput = { id };
+    if (reason?.trim()) input.reason = reason.trim();
+    const fields = [...this.dirtyFields]
+      .filter((k) => (c.fields[k]?.value ?? '') !== (o.fields[k]?.value ?? ''))
+      .map((k) => {
+        const f = c.fields[k]!;
+        return { ...splitKey(k), value: f.value, source: f.source, confirmed: true };
+      });
+    if (fields.length) input.fields = fields;
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    if (!same(c.diagnoses, o.diagnoses)) input.diagnoses = c.diagnoses;
+    if (!same(c.investigations, o.investigations)) input.investigations = c.investigations;
+    if (c.followUp !== o.followUp) input.followUp = c.followUp;
+    const changed = input.fields || input.diagnoses || input.investigations || input.followUp !== undefined;
+    return changed ? input : null;
   }
 
   get state(): DraftState {
@@ -161,6 +193,10 @@ export class DraftStore {
   }
 
   private schedule(delay = SAVE_DEBOUNCE_MS): void {
+    if (this.editing) {
+      this.set({ unsaved: this.pendingCount() });
+      return;
+    }
     if (this.timer) this.timers.clear(this.timer);
     this.timer = this.timers.set(() => {
       this.timer = null;
@@ -182,7 +218,9 @@ export class DraftStore {
       this.again = true;
       return this.saving;
     }
-    if (this.pendingCount() === 0 || this.current.status === 'signed') return Promise.resolve();
+    if (this.editing || this.pendingCount() === 0 || this.current.status === 'signed') {
+      return Promise.resolve();
+    }
     this.saving = this.send().finally(() => {
       this.saving = null;
       if (this.again) {
@@ -263,6 +301,8 @@ export function saveStatusLine(s: DraftState, time: (iso: string) => string): st
       return 'Not saved yet · retrying';
     case 'signed':
       return 'This visit is signed and read-only';
+    case 'editing':
+      return 'Editing the signed note · saved as a new version when you tap Save';
     default:
       return 'Changes save automatically';
   }

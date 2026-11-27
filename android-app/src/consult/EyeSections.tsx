@@ -13,6 +13,7 @@ import {
   EYE_FIELD,
   eyeKey,
   IOP_METHODS,
+  normalFillFor,
   iopWarning,
   PURPOSES,
   SIDES,
@@ -192,6 +193,25 @@ export function ExamCard({ d, readOnly }: Props) {
 
   return (
     <Card title="Examination — per eye">
+      {!readOnly ? (
+        <View style={styles.normals}>
+          {SIDES.map((side) => {
+            const fill = normalFillFor(side, (k) => d.value(k));
+            return (
+              <Pressable
+                key={side}
+                style={[styles.normal, fill.length === 0 && { opacity: 0.5 }]}
+                disabled={fill.length === 0}
+                onPress={() => fill.forEach(([k, v]) => d.setField(k, v))}
+                accessibilityRole="button"
+                accessibilityLabel={`${side} all normal: fills ${fill.length} empty rows`}
+              >
+                <Text style={styles.normalText}>{side} all normal</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       <TableHeader />
       {rows.map((r) =>
         r.key === 'cover_test' ? (
@@ -352,4 +372,15 @@ const styles = StyleSheet.create({
   cellActive: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryContainer },
   warning: { ...type.caption, color: colors.warning },
   note: { ...type.body, color: colors.onSurfaceVariant },
+  normals: { flexDirection: 'row', gap: spacing.sm },
+  normal: {
+    flex: 1,
+    minHeight: MIN_TAP,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  normalText: { ...type.labelLarge, color: colors.primary },
 });

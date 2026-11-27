@@ -1,4 +1,5 @@
 import type {
+  AllergyList,
   DiagnosisFavourite,
   HealthResponse,
   Patient,
@@ -10,6 +11,7 @@ import type {
   QueueEntry,
   UserSummary,
   VisitDetail,
+  VisitAmendmentInput,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
 
@@ -60,8 +62,8 @@ export class ApiClient {
   queue(): Promise<QueueEntry[]> {
     return this.request('GET', '/queue');
   }
-  openConsult(patientId: string, force = false): Promise<QueueEntry> {
-    return this.request('POST', `/queue/${encodeURIComponent(patientId)}/open${force ? '?force=true' : ''}`);
+  openConsult(patientId: string): Promise<QueueEntry> {
+    return this.request('POST', `/queue/${encodeURIComponent(patientId)}/open`);
   }
   /** Doctor's "Reset queue": everyone back to Waiting with fresh times. Never deletes visits. */
   resetQueue(): Promise<QueueResetResult> {
@@ -72,6 +74,10 @@ export class ApiClient {
   }
   patient(id: string): Promise<PatientDetail> {
     return this.request('GET', `/patients/${encodeURIComponent(id)}`);
+  }
+  /** DIG-99: adds an allergy to the patient's list (no-op if already there). */
+  addAllergy(patientId: string, name: string): Promise<AllergyList> {
+    return this.request('POST', `/patients/${encodeURIComponent(patientId)}/allergies`, true, { name });
   }
   addCondition(patientId: string, input: PatientConditionInput): Promise<PatientCondition> {
     return this.request('POST', `/patients/${encodeURIComponent(patientId)}/conditions`, true, input);
@@ -95,6 +101,10 @@ export class ApiClient {
   /** Sign (DIG-41): checks a diagnosis is present, locks the visit and sets the queue entry to Done. */
   signVisit(visitId: string): Promise<VisitDetail> {
     return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`);
+  }
+  /** Edit a signed visit (DIG-97): saved as the next version; the signed note is kept. */
+  amendVisit(visitId: string, input: VisitAmendmentInput): Promise<VisitDetail> {
+    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/amendments`, true, input);
   }
   /** The doctor's most-used diagnoses, shown first in the diagnosis picker (DIG-53). */
   diagnosisFavourites(): Promise<DiagnosisFavourite[]> {

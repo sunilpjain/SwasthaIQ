@@ -136,8 +136,9 @@ describe('queue view', () => {
     expect(syncLine(true, null)).toBe('Loading today’s queue…');
   });
 
-  it('only views Done patients; opens everyone else', () => {
+  it('opens a consult only for own patients who are not Done (DIG-96)', () => {
     expect(tapAction(entry({ name: 'A', status: 'done' }))).toBe('view');
     expect(tapAction(entry({ name: 'B', status: 'not_arrived' }))).toBe('open');
+    expect(tapAction(entry({ name: 'C', status: 'waiting', mine: false }))).toBe('view');
   });
 });

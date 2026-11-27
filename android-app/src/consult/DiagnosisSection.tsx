@@ -18,6 +18,7 @@ import {
   searchCodes,
   type Icd10Code,
 } from './icd10/search';
+import type { Suggestion } from './icd10/suggestions';
 
 /** Favourites load once per app session; the picker works offline without them. */
 let favouritesCache: DiagnosisFavourite[] | null = null;
@@ -33,12 +34,15 @@ export default function DiagnosisSection({
   specialty,
   today,
   readOnly,
+  suggestions = [],
 }: {
   diagnoses: Diagnosis[];
   onChange: (list: Diagnosis[]) => void;
   specialty: Specialty;
   today: string;
   readOnly: boolean;
+  /** DIG-100: offered, never added until tapped. */
+  suggestions?: Suggestion[];
 }) {
   const [picking, setPicking] = useState(false);
 
@@ -58,6 +62,18 @@ export default function DiagnosisSection({
       { ...d, role: diagnoses.some((x) => x.role === 'primary') ? 'comorbidity' : 'primary' },
     ]);
     setPicking(false);
+  }
+
+  function addSuggestion(sg: Suggestion) {
+    rememberPick(sg.code);
+    add({
+      kind: 'icd10',
+      icd10Code: sg.code,
+      label: sg.label,
+      certainty: 'provisional',
+      eye: specialty === 'eye' ? (sg.eye ?? eyeFromTitle(sg.label)) : null,
+      diagnosedOn: today,
+    });
   }
 
   return (
@@ -119,6 +135,25 @@ export default function DiagnosisSection({
           </View>
         </View>
       ))}
+      {!readOnly && suggestions.length ? (
+        <View style={styles.suggested}>
+          <Text style={styles.label}>Suggested · tap to add</Text>
+          {suggestions.map((sg) => (
+            <Pressable
+              key={sg.code}
+              style={styles.suggestion}
+              onPress={() => addSuggestion(sg)}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${sg.code} ${sg.label}. ${sg.reason}`}
+            >
+              <Text style={styles.itemText}>
+                <Text style={styles.code}>+ {sg.code}</Text> · {sg.label}
+              </Text>
+              <Text style={styles.reason}>{sg.reason}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       {!readOnly ? (
         <Pressable style={styles.addButton} onPress={() => setPicking(true)} accessibilityRole="button">
           <Text style={styles.addText}>+ Add diagnosis</Text>
@@ -128,6 +163,10 @@ export default function DiagnosisSection({
         visible={picking}
         specialty={specialty}
         chosen={diagnoses}
+        suggestions={suggestions}
+        onPickSuggestion={(sg) => {
+          addSuggestion(sg);
+        }}
         onClose={() => setPicking(false)}
         onPickCode={(c) => {
           rememberPick(c.code);
@@ -190,6 +229,8 @@ function PickerModal({
   visible,
   specialty,
   chosen,
+  suggestions,
+  onPickSuggestion,
   onClose,
   onPickCode,
   onPickMisc,
@@ -197,6 +238,8 @@ function PickerModal({
   visible: boolean;
   specialty: Specialty;
   chosen: Diagnosis[];
+  suggestions: Suggestion[];
+  onPickSuggestion: (s: Suggestion) => void;
   onClose: () => void;
   onPickCode: (c: Icd10Code) => void;
   onPickMisc: (text: string) => void;
@@ -276,6 +319,28 @@ function PickerModal({
               </Pressable>
             );
           }}
+          ListHeaderComponent={
+            !misc && suggestions.length ? (
+              <View>
+                <Text style={styles.sectionTitle}>Suggested</Text>
+                {suggestions.map((sg) => (
+                  <Pressable
+                    key={sg.code}
+                    style={styles.result}
+                    onPress={() => onPickSuggestion(sg)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${sg.code}, ${sg.label}. ${sg.reason}`}
+                  >
+                    <Text style={styles.resultCode}>{sg.code}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.resultTitle}>{sg.label}</Text>
+                      <Text style={styles.reason}>{sg.reason}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : undefined
+          }
           ListEmptyComponent={
             <Text style={styles.empty}>
               {misc ? 'No ICD-10 code matches.' : 'Type a code or a few letters of the diagnosis.'}
@@ -391,4 +456,12 @@ const styles = StyleSheet.create({
   },
   miscText: { ...type.bodyStrong, color: colors.primary },
   source: { ...type.caption, color: colors.onSurfaceVariant },
+  suggested: {
+    gap: spacing.xs,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  suggestion: { minHeight: MIN_TAP, justifyContent: 'center', paddingVertical: spacing.xs },
+  reason: { ...type.label, color: colors.onSurfaceVariant },
 });

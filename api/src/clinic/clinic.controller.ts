@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { QueueEntry, QueueResetResult, UserSummary } from '@swasthyaiq/shared';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
@@ -43,8 +43,7 @@ export class ClinicController {
   open(
     @CurrentUser() user: AuthUser,
     @Param('patientId', new ParseUUIDPipe()) patientId: string,
-    @Query('force') force?: string,
   ): Promise<QueueEntry> {
-    return this.clinic.openConsult(user, patientId, force === 'true');
+    return this.clinic.openConsult(user, patientId);
   }
 }

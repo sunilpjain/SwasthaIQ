@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   KeyboardAvoidingView,
   Pressable,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import type { InvestigationOrder, PatientDetail, Specialty } from '@swasthyaiq/shared';
+import type { InvestigationOrder, PatientDetail, Specialty, VisitDetail } from '@swasthyaiq/shared';
 import { ApiError } from '../../api/client';
 import { api, useSession } from '../../auth/SessionProvider';
 import Placeholder from '../../components/Placeholder';
@@ -30,12 +31,24 @@ import {
   VITALS,
   vitalWarning,
 } from '../../consult/consult-fields';
+import { isSameDayEdit } from '../../consult/amend';
 import { forgetDraft, getDraft, keepDraft } from '../../consult/draft-registry';
 import { buildReview, signErrorCode } from '../../consult/review';
 import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
+import { suggestDiagnoses } from '../../consult/icd10/suggestions';
+import PhraseChips from '../../consult/PhraseChips';
+import {
+  ALLERGY_CHIPS,
+  appendDuration,
+  COMPLAINT_CHIPS,
+  DURATION_CHIPS,
+  FAMILY_SOCIAL_CHIPS,
+  NO_KNOWN_ALLERGIES,
+  PROCEDURE_CHIPS,
+} from '../../consult/pick-lists';
 import { GastroExamCard, GastroPlanChips } from '../../consult/GastroSections';
 import { addEyeTag } from '../../consult/eye-fields';
 import {
@@ -59,7 +72,7 @@ const SPECIALTY_OPD: Record<Specialty, string> = { gastro: 'Gastro OPD', eye: 'E
 type Load =
   | { status: 'loading' }
   | { status: 'error'; offline: boolean }
-  | { status: 'ready'; patient: PatientDetail; draft: DraftStore };
+  | { status: 'ready'; patient: PatientDetail; draft: DraftStore; editing: VisitDetail | null };
 
 /** Today's draft by this doctor for this patient, if one was started earlier. */
 async function openDraft(
@@ -77,9 +90,23 @@ async function openDraft(
   return { patient, draft };
 }
 
+/** DIG-97: a signed visit reopened in the form, pre-filled with its latest version. */
+async function openEdit(
+  patientId: string,
+  visitId: string,
+  myUserId: string,
+): Promise<{ patient: PatientDetail; draft: DraftStore; editing: VisitDetail }> {
+  const [patient, visit] = await Promise.all([api.patient(patientId), api.visit(visitId)]);
+  if (visit.status !== 'signed' || visit.doctorId !== myUserId) {
+    throw new ApiError(403, 'not_your_visit', 'Only the doctor who signed it can edit this visit');
+  }
+  const draft = new DraftStore(api, { visitId, patientId, existing: visit, edit: true });
+  return { patient, draft, editing: visit };
+}
+
 /** Consult note, typed (DIG-50, hi-fi screen 4). Specialty sections arrive with DIG-51/52. */
 export default function ConsultScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, edit } = useLocalSearchParams<{ id?: string; edit?: string }>();
   const router = useRouter();
   const { me } = useSession();
   const [load, setLoad] = useState<Load>({ status: 'loading' });
@@ -89,22 +116,38 @@ export default function ConsultScreen() {
   const [mode, setMode] = useState<'edit' | 'review' | 'signed'>('edit');
   const [sign, setSign] = useState<SignState>({ status: 'idle' });
   const [signedAt, setSignedAt] = useState('');
+  // DIG-97: the version just saved, and the reason typed for an edit after the signing day.
+  const [savedVersion, setSavedVersion] = useState(1);
+  const [reason, setReason] = useState('');
+  const [needReason, setNeedReason] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const amendmentId = useRef<string | null>(null);
   useEffect(() => {
     setMode('edit');
     setSign({ status: 'idle' });
-  }, [id]);
+    setReason('');
+    setNeedReason(false);
+    setSavedVersion(1);
+    amendmentId.current = null;
+  }, [id, edit]);
 
   const start = useCallback(async () => {
     if (!id || !me) return;
     setLoad({ status: 'loading' });
     try {
-      const { patient, draft } = await openDraft(id, me.id);
-      setState(draft.state);
-      setLoad({ status: 'ready', patient, draft });
+      if (edit) {
+        const { patient, draft, editing } = await openEdit(id, edit, me.id);
+        setState(draft.state);
+        setLoad({ status: 'ready', patient, draft, editing });
+      } else {
+        const { patient, draft } = await openDraft(id, me.id);
+        setState(draft.state);
+        setLoad({ status: 'ready', patient, draft, editing: null });
+      }
     } catch (e) {
       setLoad({ status: 'error', offline: e instanceof ApiError && e.code === 'network' });
     }
-  }, [id, me]);
+  }, [id, edit, me]);
 
   useEffect(() => {
     void start();
@@ -159,6 +202,9 @@ export default function ConsultScreen() {
   const p = load.patient.patient;
   const now = new Date();
   const readOnly = state.status === 'signed';
+  const editing = load.editing;
+  const sameDay = editing ? isSameDayEdit(editing.signedAt, now) : true;
+  const askReason = !!editing && (!sameDay || needReason);
   const field = (key: string) => state.fields[key];
   const entry = queueStore.state.entries.find((e) => e.patient.id === p.id);
   const specialty: Specialty = me.specialty ?? 'gastro';
@@ -179,6 +225,25 @@ export default function ConsultScreen() {
       editable={!readOnly}
     />
   );
+
+  /** DIG-99: a picked allergy also goes onto the patient's list (shown on every screen). */
+  async function addAllergy(name: string) {
+    if (name === NO_KNOWN_ALLERGIES || p.allergies.some((a) => a.toLowerCase() === name.toLowerCase()))
+      return;
+    try {
+      const { allergies } = await api.addAllergy(p.id, name);
+      setLoad((l) =>
+        l.status === 'ready'
+          ? { ...l, patient: { ...l.patient, patient: { ...l.patient.patient, allergies } } }
+          : l,
+      );
+    } catch {
+      Alert.alert(
+        'Allergy not added to the list',
+        'It is in the note. Try picking it again when you are online.',
+      );
+    }
+  }
 
   const vitalsCard = (
     <Card title="Vitals">
@@ -255,6 +320,52 @@ export default function ConsultScreen() {
     }
   }
 
+  /** DIG-97: saves the changes as the next version. The same id is reused on a retry. */
+  async function saveEdit() {
+    if (!editing) return;
+    amendmentId.current ??= Crypto.randomUUID();
+    const input = d.amendment(amendmentId.current, askReason ? reason : undefined);
+    if (!input) {
+      Alert.alert('Nothing changed', 'Change the note, then save it as a new version.');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const v = await api.amendVisit(editing.id, input);
+      d.markSigned();
+      amendmentId.current = null;
+      setSavedVersion(v.version);
+      setSignedAt(istTime(v.editedAt ?? new Date().toISOString()));
+      setMode('signed');
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'reason_required') {
+        setNeedReason(true);
+        Alert.alert(
+          'Reason needed',
+          'This visit was signed on an earlier day. Type a reason for the change.',
+        );
+      } else {
+        const offline = e instanceof ApiError && e.code === 'network';
+        Alert.alert(
+          offline ? 'No connection' : 'Edit not saved',
+          'Nothing was lost. The signed note is unchanged; try Save again.',
+        );
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  const visitId = d.state.visitId;
+  const editAgain = () => {
+    if (edit === visitId) {
+      setMode('edit');
+      void start();
+    } else {
+      router.navigate({ pathname: '/consult', params: { id: p.id, edit: visitId } });
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={styles.screen} behavior="height">
       <View style={styles.header}>
@@ -272,8 +383,14 @@ export default function ConsultScreen() {
               {p.fullName} · {p.ageYears} {p.sex}
             </Text>
             <Text style={styles.headerSub}>
-              {mode === 'edit' ? 'Consult' : mode === 'review' ? 'Review' : 'Signed'} · {me.displayName} ·{' '}
-              {SPECIALTY_OPD[specialty]}
+              {mode === 'signed'
+                ? 'Signed'
+                : editing
+                  ? `Editing v${editing.version}`
+                  : mode === 'edit'
+                    ? 'Consult'
+                    : 'Review'}{' '}
+              · {me.displayName} · {SPECIALTY_OPD[specialty]}
             </Text>
           </View>
           <ProfileMenu variant="kebab" />
@@ -305,20 +422,49 @@ export default function ConsultScreen() {
       ) : mode === 'signed' ? (
         <SignedBody
           signedAt={signedAt}
+          version={savedVersion}
+          onEditNote={editAgain}
           onQueue={() => router.navigate('/')}
           onPatient={() => router.navigate({ pathname: '/patient', params: { id: p.id } })}
         />
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={styles.modes}>
-              <ModeButton label="Dictate" disabled />
-              <ModeButton label="Scan" disabled />
-              <ModeButton label="Type" selected />
-            </View>
-            <Text style={styles.caption}>
-              {saveStatusLine(state, istTime)} · Dictate and Scan arrive in Sprint 3
-            </Text>
+            {editing ? (
+              <View style={styles.editBanner} accessibilityRole="alert">
+                <Text style={styles.editTitle}>
+                  Editing version {editing.version} · saves as version {editing.version + 1}
+                </Text>
+                <Text style={styles.editBody}>
+                  {sameDay && !needReason
+                    ? 'Same-day edit: no reason needed until midnight.'
+                    : 'Signed on an earlier day: give a reason for the change.'}{' '}
+                  The signed version is kept.
+                </Text>
+                {askReason ? (
+                  <TextInput
+                    style={styles.reasonInput}
+                    value={reason}
+                    onChangeText={setReason}
+                    placeholder="Reason, e.g. lab report came back"
+                    placeholderTextColor={colors.onSurfaceVariant}
+                    maxLength={500}
+                    accessibilityLabel="Reason for the change"
+                  />
+                ) : null}
+              </View>
+            ) : (
+              <>
+                <View style={styles.modes}>
+                  <ModeButton label="Dictate" disabled />
+                  <ModeButton label="Scan" disabled />
+                  <ModeButton label="Type" selected />
+                </View>
+                <Text style={styles.caption}>
+                  {saveStatusLine(state, istTime)} · Dictate and Scan arrive in Sprint 3
+                </Text>
+              </>
+            )}
 
             {eye ? <PurposeCard d={d} readOnly={readOnly} /> : null}
 
@@ -329,6 +475,20 @@ export default function ConsultScreen() {
                   onTag={(tag) => d.setField(FIELD.complaint, addEyeTag(d.value(FIELD.complaint), tag))}
                 />
               ) : null}
+              <PhraseChips
+                d={d}
+                field={FIELD.complaint}
+                options={COMPLAINT_CHIPS[specialty]}
+                readOnly={readOnly}
+              />
+              <PhraseChips
+                d={d}
+                field={FIELD.complaint}
+                options={DURATION_CHIPS}
+                readOnly={readOnly}
+                label="Duration"
+                join={appendDuration}
+              />
               {text(
                 FIELD.complaint,
                 eye ? 'Complaint and history (per eye)' : 'Complaint and history',
@@ -344,11 +504,30 @@ export default function ConsultScreen() {
                 'Past medical history',
                 'e.g. Type 2 diabetes for 8 years, on metformin',
               )}
+              <PhraseChips
+                d={d}
+                field={FIELD.procedures}
+                options={PROCEDURE_CHIPS[specialty]}
+                readOnly={readOnly}
+              />
               {text(FIELD.procedures, 'Past procedures and surgeries')}
               <Text style={styles.known}>
                 Known allergies: {p.allergies.length ? p.allergies.join(', ') : 'none recorded'}
               </Text>
+              <PhraseChips
+                d={d}
+                field={FIELD.allergies}
+                options={ALLERGY_CHIPS}
+                readOnly={readOnly}
+                onPick={(a) => void addAllergy(a)}
+              />
               {text(FIELD.allergies, 'Allergy (anything new or more detail)')}
+              <PhraseChips
+                d={d}
+                field={FIELD.familySocial}
+                options={FAMILY_SOCIAL_CHIPS}
+                readOnly={readOnly}
+              />
               {text(
                 FIELD.familySocial,
                 'Family and social history',
@@ -395,6 +574,14 @@ export default function ConsultScreen() {
                 specialty={specialty}
                 today={followUpDate(0, now)}
                 readOnly={readOnly}
+                suggestions={suggestDiagnoses({
+                  specialty,
+                  fields: state.fields,
+                  conditions: load.patient.conditions,
+                  visits: load.patient.visits,
+                  chosen: state.diagnoses,
+                  myUserId: me.id,
+                })}
               />
               {text(FIELD.assessment, 'Assessment', 'e.g. Likely GERD; rule out gallstones')}
             </Card>
@@ -478,27 +665,57 @@ export default function ConsultScreen() {
             {eye ? vitalsCard : null}
           </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.outlineButton, { flex: 1 }]}
-              onPress={() => void d.flush()}
-              disabled={readOnly}
-              accessibilityRole="button"
-            >
-              <Text style={styles.outlineText}>Save draft</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.primaryButton, { flex: 1.3 }, readOnly && { opacity: 0.5 }]}
-              onPress={() => {
-                void d.flush();
-                setMode('review');
-              }}
-              disabled={readOnly}
-              accessibilityRole="button"
-            >
-              <Text style={styles.primaryText}>Next: Review</Text>
-            </Pressable>
-          </View>
+          {editing ? (
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.outlineButton, { flex: 1 }]}
+                onPress={() => router.navigate({ pathname: '/patient', params: { id: p.id } })}
+                accessibilityRole="button"
+              >
+                <Text style={styles.outlineText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  { flex: 1.3 },
+                  (readOnly || savingEdit || state.unsaved === 0 || (askReason && !reason.trim())) && {
+                    opacity: 0.5,
+                  },
+                ]}
+                onPress={() => void saveEdit()}
+                disabled={readOnly || savingEdit || state.unsaved === 0 || (askReason && !reason.trim())}
+                accessibilityRole="button"
+              >
+                {savingEdit ? (
+                  <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                  <Text style={styles.primaryText}>Save as version {editing.version + 1}</Text>
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.outlineButton, { flex: 1 }]}
+                onPress={() => void d.flush()}
+                disabled={readOnly}
+                accessibilityRole="button"
+              >
+                <Text style={styles.outlineText}>Save draft</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryButton, { flex: 1.3 }, readOnly && { opacity: 0.5 }]}
+                onPress={() => {
+                  void d.flush();
+                  setMode('review');
+                }}
+                disabled={readOnly}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryText}>Next: Review</Text>
+              </Pressable>
+            </View>
+          )}
         </>
       )}
     </KeyboardAvoidingView>
@@ -554,6 +771,24 @@ const styles = StyleSheet.create({
   modeSelected: { backgroundColor: colors.primary },
   modeText: { ...type.labelLarge, color: colors.onPrimaryContainer },
   caption: { ...type.label, color: colors.onSurfaceVariant },
+  editBanner: {
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  editTitle: { ...type.title, color: colors.onSecondaryContainer },
+  editBody: { ...type.body, color: colors.onSecondaryContainer },
+  reasonInput: {
+    ...type.body,
+    minHeight: MIN_TAP,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    color: colors.onSurface,
+  },
   known: { ...type.label, color: colors.onSurfaceVariant },
   vitals: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   vital: {
