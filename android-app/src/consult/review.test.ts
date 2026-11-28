@@ -154,4 +154,36 @@ describe('review before signing (DIG-95)', () => {
     expect(signErrorCode(503, 'http_503')).toBe('SIGN-503');
     expect(signErrorCode(0, 'not_saved')).toBe('SIGN-SAVE');
   });
+  it('blocks signing until eye medicines have an eye, and lists Rx warnings (DIG-71)', () => {
+    const r = buildReview({
+      specialty: 'eye',
+      fields: {},
+      diagnoses: [],
+      investigations: [],
+      rxLines: [
+        {
+          id: 'd1',
+          medicineId: 'timolol-05-drops',
+          route: 'eye',
+          medicineGeneric: 'timolol 0.5%',
+          form: 'Eye drops',
+          eye: null,
+          dose: '1 drop',
+          frequency: '1-0-0-1',
+          timing: null,
+          duration: '3 months',
+          taper: null,
+          instructionsEn: null,
+          instructionsLocal: null,
+          instructionsLanguage: null,
+        },
+      ],
+      rxWarnings: ['Timolol: listed as an allergy.'],
+      followUp: null,
+      knownAllergies: [],
+      now: new Date('2026-11-28T05:00:00Z'),
+    });
+    expect(r.blocking).toContain('Choose the eye (OD, OS or OU) for 1 eye medicine.');
+    expect(r.warnings[0]).toBe('Timolol: listed as an allergy.');
+  });
 });

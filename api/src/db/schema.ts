@@ -173,6 +173,16 @@ export interface RxLinesTable {
   source: Generated<'dictated' | 'scanned' | 'typed'>;
 }
 
+export interface RxOverridesTable {
+  id: Generated<string>;
+  visit_id: string;
+  rx_line_id: string;
+  kind: 'allergy' | 'duplicate';
+  rule: string;
+  overridden_by: string;
+  created_at: Generated<Date>;
+}
+
 export interface AttachmentsTable {
   id: Generated<string>;
   patient_id: string;
@@ -249,6 +259,7 @@ export interface Database {
   consult_fields: ConsultFieldsTable;
   prescriptions: PrescriptionsTable;
   rx_lines: RxLinesTable;
+  rx_overrides: RxOverridesTable;
   attachments: AttachmentsTable;
   lab_reports: LabReportsTable;
   lab_values: LabValuesTable;

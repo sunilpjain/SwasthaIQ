@@ -256,6 +256,8 @@ export interface VisitAmendmentInput {
   investigations?: InvestigationOrder[];
   /** The whole prescription after the edit (DIG-70). */
   rxLines?: RxLineInput[];
+  /** Rx warnings the doctor saved past (DIG-71). */
+  overrides?: RxOverride[];
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
@@ -278,9 +280,30 @@ export interface VisitAmendment {
 
 /** Why a sign was refused (422 `sign_blocked`). */
 export interface SignProblem {
-  code: 'no_diagnosis' | 'unconfirmed_fields';
+  code: 'no_diagnosis' | 'unconfirmed_fields' | 'rx_eye_missing';
   /** For unconfirmed_fields: "section.key" of each field still waiting for the doctor. */
   fields?: string[];
+  /** For rx_eye_missing (DIG-71): ids of eye-medicine lines with no OD / OS / OU. */
+  rxLines?: string[];
+}
+
+/** Advisory Rx warnings (DIG-71). They never block; signing past one is logged as an override. */
+export const RX_WARNING_KINDS = ['allergy', 'duplicate'] as const;
+export type RxWarningKind = (typeof RX_WARNING_KINDS)[number];
+
+/**
+ * A warning the doctor signed past. `rule` names the rule, never clinical text, e.g.
+ * "allergy:penicillin", "duplicate:class:ppi", "duplicate:other-doctor".
+ */
+export interface RxOverride {
+  rxLineId: string;
+  kind: RxWarningKind;
+  rule: string;
+}
+
+/** Body of POST /visits/:id/sign (optional). */
+export interface SignInput {
+  overrides?: RxOverride[];
 }
 
 export const CONDITION_STATUSES = ['active', 'controlled', 'resolved'] as const;

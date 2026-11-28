@@ -13,6 +13,7 @@ import type {
   VisitDetail,
   MedicineCatalogue,
   MedicineFavourite,
+  SignInput,
   VisitAmendmentInput,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -101,8 +102,8 @@ export class ApiClient {
     return this.request('PUT', `/visits/${encodeURIComponent(visitId)}`, true, input);
   }
   /** Sign (DIG-41): checks a diagnosis is present, locks the visit and sets the queue entry to Done. */
-  signVisit(visitId: string): Promise<VisitDetail> {
-    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`);
+  signVisit(visitId: string, input: SignInput = {}): Promise<VisitDetail> {
+    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`, true, input);
   }
   /** Edit a signed visit (DIG-97): saved as the next version; the signed note is kept. */
   amendVisit(visitId: string, input: VisitAmendmentInput): Promise<VisitDetail> {

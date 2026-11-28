@@ -90,4 +90,71 @@ describe('prescription in the consult (DIG-70)', () => {
       .body as PatientDetail;
     expect(after.currentMedicines.find((r) => r.visitId === V)?.lines.map((l) => l.id)).toEqual([L2]);
   });
+
+  describe('advisory checks (DIG-71)', () => {
+    let samradnyee: string;
+    const E5 = seedUuid('patient:E5');
+    const VE = 'b1b2c3d4-0000-4000-8000-000000000002';
+    const D1 = 'b1b2c3d4-0000-4000-8000-0000000000d1';
+    const drop = line({
+      id: D1,
+      medicineId: 'dorzolamide-2-drops',
+      route: 'eye',
+      medicineGeneric: 'dorzolamide 2%',
+      form: 'Eye drops',
+      dose: '1 drop',
+      frequency: '1-1-0-1',
+      timing: null,
+      instructionsLocal: null,
+      instructionsLanguage: null,
+    });
+    const save = (body: object) =>
+      http()
+        .put(`/visits/${VE}`)
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .send({ patientId: E5, ...body });
+    const sign = (body?: object) =>
+      http()
+        .post(`/visits/${VE}/sign`)
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .send(body ?? {});
+
+    beforeAll(async () => {
+      samradnyee = await t.tokenFor('samradnyee');
+    });
+
+    it('blocks signing until every eye medicine has OD / OS / OU', async () => {
+      await save({
+        rxLines: [drop],
+        rxClientUpdatedAt: T0,
+        diagnoses: [{ kind: 'icd10', icd10Code: 'H40.10X0', label: 'Open-angle glaucoma' }],
+        diagnosesClientUpdatedAt: T0,
+      }).expect(200);
+      const res = await sign().expect(422);
+      expect(res.body.problems).toEqual([{ code: 'rx_eye_missing', rxLines: [D1] }]);
+    });
+
+    it('signs once the eye is chosen, logging the warnings signed past (rule ids only)', async () => {
+      await save({ rxLines: [{ ...drop, eye: 'BE' }], rxClientUpdatedAt: T1 }).expect(200);
+      await sign({ overrides: [{ rxLineId: 'x', kind: 'allergy', rule: 'allergy:sulfonamide' }] }).expect(
+        400,
+      );
+      await sign({ overrides: [{ rxLineId: D1, kind: 'allergy', rule: 'Allergy: sulfa!' }] }).expect(400);
+      await sign({ overrides: [{ rxLineId: D1, kind: 'allergy', rule: 'allergy:sulfonamide' }] }).expect(200);
+      const rows = await t.db.selectFrom('rx_overrides').selectAll().where('visit_id', '=', VE).execute();
+      expect(rows).toEqual([
+        expect.objectContaining({ rx_line_id: D1, kind: 'allergy', rule: 'allergy:sulfonamide' }),
+      ]);
+      await expect(t.db.deleteFrom('rx_overrides').execute()).rejects.toThrow(/append-only/);
+    });
+
+    it('refuses an edit that leaves an eye medicine without its eye', async () => {
+      const res = await http()
+        .post(`/visits/${VE}/amendments`)
+        .set('Authorization', `Bearer ${samradnyee}`)
+        .send({ id: 'b1b2c3d4-0000-4000-8000-0000000000a2', rxLines: [drop] })
+        .expect(422);
+      expect(res.body.problems[0].code).toBe('rx_eye_missing');
+    });
+  });
 });

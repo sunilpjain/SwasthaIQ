@@ -40,7 +40,9 @@ import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
 import { suggestDiagnoses } from '../../consult/icd10/suggestions';
 import PhraseChips from '../../consult/PhraseChips';
-import RxSection from '../../consult/rx/RxSection';
+import { allergyEntries, checkRx, overridesFor } from '../../consult/rx/rx-checks';
+import RxSection, { cachedMedicines } from '../../consult/rx/RxSection';
+import { doctorLabel } from '../../patient/summary-view';
 import {
   ALLERGY_CHIPS,
   appendDuration,
@@ -123,6 +125,8 @@ export default function ConsultScreen() {
   const [needReason, setNeedReason] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const amendmentId = useRef<string | null>(null);
+  // Re-run the Rx checks once the medicine catalogue has loaded (DIG-71).
+  const [, setCatalogueReady] = useState(0);
   useEffect(() => {
     setMode('edit');
     setSign({ status: 'idle' });
@@ -206,6 +210,15 @@ export default function ConsultScreen() {
   const editing = load.editing;
   const sameDay = editing ? isSameDayEdit(editing.signedAt, now) : true;
   const askReason = !!editing && (!sameDay || needReason);
+  // DIG-71: advisory checks against the allergies and the other doctor's current Rx.
+  const rxWarnings = checkRx({
+    lines: state.rxLines,
+    catalogue: cachedMedicines(),
+    allergies: allergyEntries(p.allergies, d.value(FIELD.allergies)),
+    otherRx: load.patient.currentMedicines
+      .filter((r) => r.doctorId !== me.id)
+      .map((r) => ({ by: doctorLabel(r.doctorId, r.doctorName, me.id), lines: r.lines })),
+  });
   const field = (key: string) => state.fields[key];
   const entry = queueStore.state.entries.find((e) => e.patient.id === p.id);
   const specialty: Specialty = me.specialty ?? 'gastro';
@@ -296,7 +309,7 @@ export default function ConsultScreen() {
       return;
     }
     try {
-      const v = await api.signVisit(d.state.visitId);
+      const v = await api.signVisit(d.state.visitId, { overrides: overridesFor(rxWarnings) });
       d.markSigned();
       forgetDraft(p.id);
       void queueStore.refresh();
@@ -310,7 +323,9 @@ export default function ConsultScreen() {
           problems: problems.map((x) =>
             x.code === 'no_diagnosis'
               ? 'Add at least one diagnosis (ICD-10 or Misc).'
-              : 'Confirm the dictated or scanned values.',
+              : x.code === 'rx_eye_missing'
+                ? 'Choose the eye (OD, OS or OU) for every eye medicine.'
+                : 'Confirm the dictated or scanned values.',
           ),
         });
       } else if (e instanceof ApiError) {
@@ -326,6 +341,11 @@ export default function ConsultScreen() {
     if (!editing) return;
     amendmentId.current ??= Crypto.randomUUID();
     const input = d.amendment(amendmentId.current, askReason ? reason : undefined);
+    if (input?.rxLines?.some((l) => l.route === 'eye' && !l.eye)) {
+      Alert.alert('Choose the eye', 'Pick OD, OS or OU for every eye medicine, then save.');
+      return;
+    }
+    if (input && rxWarnings.length) input.overrides = overridesFor(rxWarnings);
     if (!input) {
       Alert.alert('Nothing changed', 'Change the note, then save it as a new version.');
       return;
@@ -410,6 +430,7 @@ export default function ConsultScreen() {
             diagnoses: state.diagnoses,
             investigations: state.investigations,
             rxLines: state.rxLines,
+            rxWarnings: rxWarnings.map((w) => w.text),
             followUp: state.followUp,
             knownAllergies: p.allergies,
             now,
@@ -601,6 +622,8 @@ export default function ConsultScreen() {
                 }
                 visitDate={editing?.visitDate ?? followUpDate(0, now)}
                 readOnly={readOnly}
+                warnings={rxWarnings}
+                onCatalogue={() => setCatalogueReady((n) => n + 1)}
               />
             </Card>
 

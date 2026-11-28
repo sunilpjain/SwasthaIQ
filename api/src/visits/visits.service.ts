@@ -14,6 +14,8 @@ import type {
   RecordedDiagnosis,
   LabReport,
   RxLineInput,
+  RxOverride,
+  SignInput,
   RxLine,
   SignProblem,
   VisitAmendment,
@@ -268,7 +270,7 @@ export class VisitsService {
    * and sets the patient's queue entry to Done, all in one transaction. Signing a visit that is
    * already signed returns it unchanged, so a retried call from the offline queue is safe.
    */
-  async sign(user: AuthUser, visitId: string): Promise<VisitDetail> {
+  async sign(user: AuthUser, visitId: string, input: SignInput = {}): Promise<VisitDetail> {
     assertUuid(visitId, 'Visit');
     await this.db.transaction().execute(async (trx) => {
       const v = await this.lockVisit(trx, visitId);
@@ -290,8 +292,19 @@ export class VisitsService {
         .orderBy('section')
         .orderBy('key')
         .execute();
+      // DIG-71: an eye medicine needs OD / OS / OU; this is a required field, not a warning.
+      const noEye = await trx
+        .selectFrom('rx_lines')
+        .innerJoin('prescriptions', 'prescriptions.id', 'rx_lines.prescription_id')
+        .select('rx_lines.id')
+        .where('prescriptions.visit_id', '=', visitId)
+        .where('rx_lines.route', '=', 'eye')
+        .where('rx_lines.eye', 'is', null)
+        .orderBy('rx_lines.position')
+        .execute();
       const problems: SignProblem[] = [];
       if (diagnoses.length === 0) problems.push({ code: 'no_diagnosis' });
+      if (noEye.length) problems.push({ code: 'rx_eye_missing', rxLines: noEye.map((l) => l.id) });
       if (unconfirmed.length) {
         problems.push({
           code: 'unconfirmed_fields',
@@ -305,6 +318,8 @@ export class VisitsService {
           problems,
         });
       }
+
+      await this.logOverrides(trx, user, visitId, input.overrides);
 
       // The visit list shows the Primary diagnosis (the first one if none is marked).
       const primary = diagnoses.find((d) => d.role === 'primary') ?? diagnoses[0]!;
@@ -363,6 +378,14 @@ export class VisitsService {
         .select((eb) => eb.fn.max('version').as('max'))
         .where('visit_id', '=', visitId)
         .executeTakeFirst();
+      const noEye = (input.rxLines ?? []).filter((l) => l.route === 'eye' && !l.eye);
+      if (noEye.length) {
+        throw new UnprocessableEntityException({
+          code: 'sign_blocked',
+          message: 'Choose the eye for every eye medicine',
+          problems: [{ code: 'rx_eye_missing', rxLines: noEye.map((l) => l.id) }],
+        });
+      }
       const reason = input.reason ?? (isSameDayEdit(v.signed_at, new Date()) ? SAME_DAY_REASON : null);
       if (!reason) {
         throw new UnprocessableEntityException({
@@ -387,6 +410,7 @@ export class VisitsService {
           changes: JSON.stringify(changes),
         })
         .execute();
+      await this.logOverrides(trx, user, visitId, input.overrides);
     });
     return this.detail(visitId);
   }
@@ -649,6 +673,23 @@ export class VisitsService {
       .executeTakeFirst();
     if (!v) throw new NotFoundException({ code: 'not_found', message: 'Visit not found' });
     return v;
+  }
+
+  /** DIG-71: the advisory warnings the doctor signed or saved past. Rule ids only, no text. */
+  private async logOverrides(trx: Trx, user: AuthUser, visitId: string, overrides?: RxOverride[]) {
+    if (!overrides?.length) return;
+    await trx
+      .insertInto('rx_overrides')
+      .values(
+        overrides.map((o) => ({
+          visit_id: visitId,
+          rx_line_id: o.rxLineId,
+          kind: o.kind,
+          rule: o.rule,
+          overridden_by: user.id,
+        })),
+      )
+      .execute();
   }
 
   /** Replaces the visit's prescription lines (DIG-70). The signed-visit triggers guard both tables. */

@@ -9,11 +9,14 @@ import {
   ICD10_CODE_RE,
   LANGUAGES,
   MEDICINE_ROUTES,
+  RX_WARNING_KINDS,
   type CaptureSource,
   type ConsultFieldInput,
   type Diagnosis,
   type InvestigationOrder,
   type RxLineInput,
+  type RxOverride,
+  type SignInput,
   type VisitAmendmentInput,
   type VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -41,6 +44,7 @@ export const LIMITS = {
 } as const;
 
 const MEDICINE_ID_RE = /^[a-z0-9-]{1,64}$/;
+const RULE_RE = /^[a-z0-9:-]{1,64}$/;
 
 const TEST_CODE_RE = /^[A-Z0-9_]{1,20}$/;
 
@@ -228,6 +232,26 @@ export function parseRxLines(v: unknown, path: string): RxLineInput[] {
   return lines;
 }
 
+/** Rx warnings the doctor signed or saved past (DIG-71): rule ids only. */
+export function parseOverrides(v: unknown, path: string): RxOverride[] {
+  return array(v, path, 100).map((o, i) => {
+    const p = `${path}[${i}]`;
+    if (!isObject(o)) bad(p, 'must be an object');
+    if (typeof o.rxLineId !== 'string' || !UUID_RE.test(o.rxLineId)) bad(`${p}.rxLineId`, 'must be a UUID');
+    const kind = oneOf(o, 'kind', p, RX_WARNING_KINDS);
+    if (!kind) bad(`${p}.kind`, `must be one of ${RX_WARNING_KINDS.join(', ')}`);
+    if (typeof o.rule !== 'string' || !RULE_RE.test(o.rule)) bad(`${p}.rule`, 'must be a rule id');
+    return { rxLineId: o.rxLineId.toLowerCase(), kind, rule: o.rule };
+  });
+}
+
+/** Body of POST /visits/:id/sign: optional, for the overrides. */
+export function parseSign(body: unknown): SignInput {
+  if (body === undefined || body === null || (isObject(body) && Object.keys(body).length === 0)) return {};
+  if (!isObject(body)) bad('body', 'must be a JSON object');
+  return body.overrides === undefined ? {} : { overrides: parseOverrides(body.overrides, 'overrides') };
+}
+
 export function parseDraft(body: unknown): VisitDraftInput {
   if (!isObject(body)) bad('body', 'must be a JSON object');
   if (typeof body.patientId !== 'string' || !UUID_RE.test(body.patientId)) bad('patientId', 'must be a UUID');
@@ -289,6 +313,7 @@ export function parseAmendment(body: unknown): VisitAmendmentInput {
     out.followUp = body.followUp === null ? null : isoDate(body.followUp, 'followUp');
   }
   if (body.rxLines !== undefined) out.rxLines = parseRxLines(body.rxLines, 'rxLines');
+  if (body.overrides !== undefined) out.overrides = parseOverrides(body.overrides, 'overrides');
   if (
     !out.fields?.length &&
     !out.diagnoses &&

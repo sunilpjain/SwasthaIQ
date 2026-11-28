@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import type { MedicineCatalogue, MedicineFavourite, RxLine, RxLineInput } from '@swasthyaiq/shared';
+import type { Medicine, MedicineCatalogue, MedicineFavourite, RxLine, RxLineInput } from '@swasthyaiq/shared';
+import type { RxWarning } from './rx-checks';
 import { api } from '../../auth/SessionProvider';
 import { colors, MIN_TAP, radius, spacing, type } from '../../theme/tokens';
 import Chip, { Chips } from '../Chip';
@@ -28,6 +29,9 @@ import {
 let catalogueCache: MedicineCatalogue | null = null;
 let favouritesCache: MedicineFavourite[] | null = null;
 
+/** The loaded catalogue, for the checks run at review and sign time (DIG-71). */
+export const cachedMedicines = (): Medicine[] => catalogueCache?.medicines ?? [];
+
 const newId = () => Crypto.randomUUID();
 
 type Panel = 'none' | 'favourites' | 'sets';
@@ -42,6 +46,8 @@ export default function RxSection({
   lastRx,
   visitDate,
   readOnly,
+  warnings = [],
+  onCatalogue,
 }: {
   lines: RxLineInput[];
   onChange: (list: RxLineInput[]) => void;
@@ -50,6 +56,10 @@ export default function RxSection({
   /** ISO date the Rx starts (the visit date). */
   visitDate: string;
   readOnly: boolean;
+  /** Advisory warnings per line (DIG-71); they never block. */
+  warnings?: RxWarning[];
+  /** Called once the catalogue has loaded, so the screen can re-run the checks. */
+  onCatalogue?: () => void;
 }) {
   const [catalogue, setCatalogue] = useState<MedicineCatalogue | null>(catalogueCache);
   const [favourites, setFavourites] = useState<MedicineFavourite[]>(favouritesCache ?? []);
@@ -68,6 +78,7 @@ export default function RxSection({
         if (live) {
           setCatalogue(c);
           setFavourites(f);
+          onCatalogue?.();
         }
       })
       .catch(() => live && setFailed(true));
@@ -204,6 +215,13 @@ export default function RxSection({
               {dates ? <Text style={styles.lineSub}>{dates}</Text> : null}
               {l.instructionsLocal ? <Text style={styles.lineSub}>{l.instructionsLocal}</Text> : null}
               {missingEye ? <Text style={styles.warn}>⚠ Choose the eye: OD, OS or OU.</Text> : null}
+              {warnings
+                .filter((w) => w.rxLineId === l.id)
+                .map((w) => (
+                  <Text key={w.rule} style={styles.advice}>
+                    ⚠ {w.text} You can still prescribe it.
+                  </Text>
+                ))}
             </Pressable>
             {open === l.id && !readOnly ? <LineEditor line={l} onChange={(p) => update(l.id, p)} /> : null}
             {open === l.id && !readOnly ? (
@@ -379,6 +397,13 @@ const styles = StyleSheet.create({
   lineSig: { ...type.body, color: colors.onSurface },
   lineSub: { ...type.label, color: colors.onSurfaceVariant },
   warn: { ...type.label, color: colors.onWarningContainer },
+  advice: {
+    ...type.label,
+    color: colors.onWarningContainer,
+    backgroundColor: colors.warningContainer,
+    borderRadius: radius.sm,
+    padding: spacing.xs,
+  },
   editor: { gap: spacing.sm, marginTop: spacing.sm },
   field: { gap: 2 },
   label: { ...type.label, color: colors.onSurfaceVariant },

@@ -4,7 +4,7 @@ import type { VisitDetail } from '@swasthyaiq/shared';
 import { Audit } from '../audit/audit.interceptor';
 import { AuditService } from '../audit/audit.service';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
-import { parseAmendment, parseDraft } from './visit-input';
+import { parseAmendment, parseSign, parseDraft } from './visit-input';
 import { VisitsService } from './visits.service';
 
 /** Visit and consult note (DIG-41). Doctor role only; every write is audited. */
@@ -55,8 +55,12 @@ export class VisitsController {
   @Post(':id/sign')
   @HttpCode(200)
   @Audit('visit.sign')
-  sign(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string): Promise<VisitDetail> {
-    return this.visits.sign(user, id);
+  sign(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ): Promise<VisitDetail> {
+    return this.visits.sign(user, id, parseSign(body));
   }
 
   @Post(':id/amendments')

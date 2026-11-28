@@ -10,6 +10,7 @@ import { FIELD, followUpLabel, VITALS, vitalWarning } from './consult-fields';
 import type { DraftField } from './draft-store';
 import { EXAM_ROWS, EYE_FIELD, eyeKey, iopWarning, VISION_ROWS } from './eye-fields';
 import { GASTRO_FIELD } from './gastro-fields';
+import { linesMissingEye } from './rx/rx-checks';
 import { lineSig, lineTitle } from './rx/rx-lines';
 
 /**
@@ -35,6 +36,8 @@ export interface ReviewInput {
   investigations: InvestigationOrder[];
   /** The prescription (DIG-70). */
   rxLines?: RxLineInput[];
+  /** Advisory Rx warnings (DIG-71), shown with the others; they never block. */
+  rxWarnings?: string[];
   followUp: string | null;
   knownAllergies: string[];
   now: Date;
@@ -191,7 +194,12 @@ export function buildReview(input: ReviewInput): Review {
       `Confirm ${unconfirmed.length} dictated or scanned value${unconfirmed.length === 1 ? '' : 's'}.`,
     );
 
-  const warnings: string[] = [];
+  const noEye = linesMissingEye(input.rxLines ?? []).length;
+  if (noEye) {
+    blocking.push(`Choose the eye (OD, OS or OU) for ${noEye} eye medicine${noEye === 1 ? '' : 's'}.`);
+  }
+
+  const warnings: string[] = [...(input.rxWarnings ?? [])];
   if (!f[FIELD.complaint]?.value.trim()) warnings.push('No complaint or history written.');
   for (const v of VITALS) {
     const w = vitalWarning(v.key, f[v.key]?.value ?? '');
