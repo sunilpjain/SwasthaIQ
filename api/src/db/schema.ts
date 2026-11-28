@@ -173,6 +173,14 @@ export interface RxLinesTable {
   source: Generated<'dictated' | 'scanned' | 'typed'>;
 }
 
+export interface VisitDocumentsTable {
+  visit_id: string;
+  version: number;
+  s3_key: string;
+  bytes: number;
+  created_at: Generated<Date>;
+}
+
 export interface RxOverridesTable {
   id: Generated<string>;
   visit_id: string;
@@ -260,6 +268,7 @@ export interface Database {
   prescriptions: PrescriptionsTable;
   rx_lines: RxLinesTable;
   rx_overrides: RxOverridesTable;
+  visit_documents: VisitDocumentsTable;
   attachments: AttachmentsTable;
   lab_reports: LabReportsTable;
   lab_values: LabValuesTable;

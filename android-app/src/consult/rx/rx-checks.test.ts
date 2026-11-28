@@ -1,5 +1,5 @@
 import type { AllergyClass, Medicine, RxLineInput } from '@swasthyaiq/shared';
-import { allergyEntries, checkRx, genericBase, linesMissingEye, overridesFor } from './rx-checks';
+import { allergyEntries, checkRx, genericBase, linesMissingEye, overridesFor } from '@swasthyaiq/shared';
 
 const med = (
   id: string,

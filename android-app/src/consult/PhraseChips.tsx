@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native';
 import Chip, { Chips, chipStyles } from './Chip';
-import { appendPhrase, hasPhrase } from './consult-fields';
+import { appendPhrase, hasPhrase } from '@swasthyaiq/shared';
 import type { DraftStore } from './draft-store';
 
 /**

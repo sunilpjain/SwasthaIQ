@@ -1,4 +1,4 @@
-import type { Eye, EyeSide } from '@swasthyaiq/shared';
+import type { Eye, EyeSide } from '../index';
 
 /**
  * Eye section for Dr. Samradnyee (DIG-52), following her clinic's EMR order:

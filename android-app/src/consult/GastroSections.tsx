@@ -1,7 +1,7 @@
 import { Text } from 'react-native';
 import Card from '../patient/Card';
 import Chip, { Chips, chipStyles } from './Chip';
-import { appendPhrase, hasPhrase } from './consult-fields';
+import { appendPhrase, hasPhrase } from '@swasthyaiq/shared';
 import type { DraftStore } from './draft-store';
 import FieldBox from './FieldBox';
 import {
@@ -14,7 +14,7 @@ import {
   PLAN_TYPES,
   TENDERNESS_CHIPS,
   toggleListItem,
-} from './gastro-fields';
+} from '@swasthyaiq/shared';
 
 interface Props {
   d: DraftStore;

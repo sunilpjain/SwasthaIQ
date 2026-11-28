@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, MIN_TAP, radius, spacing, type } from '../theme/tokens';
 import { SourceBadge } from './FieldBox';
-import type { Review } from './review';
+import type { Review } from '@swasthyaiq/shared';
 
 export type SignState =
   | { status: 'idle' }

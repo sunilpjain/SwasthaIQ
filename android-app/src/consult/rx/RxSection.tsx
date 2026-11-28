@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import type { Medicine, MedicineCatalogue, MedicineFavourite, RxLine, RxLineInput } from '@swasthyaiq/shared';
-import type { RxWarning } from './rx-checks';
+import type { RxWarning } from '@swasthyaiq/shared';
 import { api } from '../../auth/SessionProvider';
 import { colors, MIN_TAP, radius, spacing, type } from '../../theme/tokens';
 import Chip, { Chips } from '../Chip';
@@ -23,7 +23,7 @@ import {
   searchMedicines,
   TIMING_CHIPS,
   type LocalLanguage,
-} from './rx-lines';
+} from '@swasthyaiq/shared';
 
 /** The catalogue and favourites load once per app session (DIG-69). */
 let catalogueCache: MedicineCatalogue | null = null;

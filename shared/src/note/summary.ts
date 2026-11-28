@@ -1,17 +1,11 @@
-import type {
-  CaptureSource,
-  Diagnosis,
-  InvestigationOrder,
-  RxLineInput,
-  Specialty,
-} from '@swasthyaiq/shared';
-import { shortDate } from '../patient/summary-view';
+import type { CaptureSource, Diagnosis, InvestigationOrder, RxLineInput, Specialty } from '../index';
+import { shortDate } from './time';
 import { FIELD, followUpLabel, VITALS, vitalWarning } from './consult-fields';
-import type { DraftField } from './draft-store';
+import type { NoteField } from './fields';
 import { EXAM_ROWS, EYE_FIELD, eyeKey, iopWarning, VISION_ROWS } from './eye-fields';
 import { GASTRO_FIELD } from './gastro-fields';
-import { linesMissingEye } from './rx/rx-checks';
-import { lineSig, lineTitle } from './rx/rx-lines';
+import { linesMissingEye } from './rx-checks';
+import { lineSig, lineTitle } from './rx-lines';
 
 /**
  * The on-phone review before signing (DIG-95), in the DIG-29 summary order. Built from the draft
@@ -31,7 +25,7 @@ export interface ReviewSection {
 
 export interface ReviewInput {
   specialty: Specialty;
-  fields: Record<string, DraftField>;
+  fields: Record<string, NoteField>;
   diagnoses: Diagnosis[];
   investigations: InvestigationOrder[];
   /** The prescription (DIG-70). */
@@ -54,7 +48,7 @@ export interface Review {
 const ROLE = { primary: 'Primary', comorbidity: 'Co-morbidity' } as const;
 const CERTAINTY = { provisional: 'Provisional', final: 'Final' } as const;
 
-function line(fields: Record<string, DraftField>, key: string, label?: string): ReviewLine | null {
+function line(fields: Record<string, NoteField>, key: string, label?: string): ReviewLine | null {
   const f = fields[key];
   const v = f?.value.trim();
   if (!f || !v) return null;
@@ -73,7 +67,7 @@ export function diagnosisLine(d: Diagnosis): string {
   return `${code} ${d.label} — ${tags}`;
 }
 
-function vitalsLine(fields: Record<string, DraftField>): ReviewLine | null {
+function vitalsLine(fields: Record<string, NoteField>): ReviewLine | null {
   const parts = VITALS.map((v) => {
     const value = fields[v.key]?.value.trim();
     return value ? `${v.label} ${value} ${v.unit}` : null;
@@ -81,7 +75,7 @@ function vitalsLine(fields: Record<string, DraftField>): ReviewLine | null {
   return parts.length ? { text: parts.join(' · ') } : null;
 }
 
-function pair(fields: Record<string, DraftField>, key: string, label: string, unit = ''): ReviewLine | null {
+function pair(fields: Record<string, NoteField>, key: string, label: string, unit = ''): ReviewLine | null {
   const od = fields[eyeKey('OD', key)]?.value.trim();
   const os = fields[eyeKey('OS', key)]?.value.trim();
   if (!od && !os) return null;

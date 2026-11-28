@@ -1,5 +1,5 @@
-import type { Eye, Language, Medicine, OrderSet, RxLine, RxLineInput } from '@swasthyaiq/shared';
-import { eyeLabel } from '../eye-fields';
+import type { Eye, Language, Medicine, OrderSet, RxLine, RxLineInput } from '../index';
+import { eyeLabel } from './eye-fields';
 
 /**
  * Prescription builder helpers (DIG-70). Pure functions so the rules are unit tested.

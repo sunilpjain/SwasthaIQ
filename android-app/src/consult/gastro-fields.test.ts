@@ -1,5 +1,5 @@
-import { appendPhrase } from './consult-fields';
-import { NO_ALARM_FEATURES, parseList, TENDERNESS_CHIPS, toggleListItem } from './gastro-fields';
+import { appendPhrase } from '@swasthyaiq/shared';
+import { NO_ALARM_FEATURES, parseList, TENDERNESS_CHIPS, toggleListItem } from '@swasthyaiq/shared';
 
 describe('gastro fields (DIG-51)', () => {
   it('builds per-abdomen findings from tap-to-add phrases', () => {

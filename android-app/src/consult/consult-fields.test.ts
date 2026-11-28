@@ -7,7 +7,7 @@ import {
   splitKey,
   toggleInvestigation,
   vitalWarning,
-} from './consult-fields';
+} from '@swasthyaiq/shared';
 
 describe('consult fields', () => {
   it('splits section and key', () => {

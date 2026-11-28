@@ -5,6 +5,8 @@ import { createApp } from './bootstrap';
 import { loadConfig } from './config/config';
 import { createDb } from './db/database';
 import { migrate } from './db/migrate';
+import { MemoryFileStore, S3FileStore } from './files/file-store';
+import { InlineJobQueue, SqsJobQueue } from './jobs/job-queue';
 import { logger } from './logging/logger';
 
 async function main(): Promise<void> {
@@ -26,6 +28,8 @@ async function main(): Promise<void> {
     ),
     cognitoAdmin: new AwsCognitoAdmin(config.cognito.userPoolId, config.awsRegion),
     version: config.version,
+    files: config.filesBucket ? new S3FileStore(config.filesBucket, config.awsRegion) : new MemoryFileStore(),
+    jobs: config.jobsQueueUrl ? new SqsJobQueue(config.jobsQueueUrl, config.awsRegion) : new InlineJobQueue(),
   });
   await app.listen(config.port, '0.0.0.0');
   logger.info({ port: config.port, env: config.env, version: config.version }, 'api listening');

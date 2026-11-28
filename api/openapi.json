@@ -336,6 +336,63 @@
         ]
       }
     },
+    "/visits/{id}/summary": {
+      "get": {
+        "operationId": "SummaryController_document",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{id}/summary.pdf": {
+      "get": {
+        "operationId": "SummaryController_pdf",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{id}/print-copy": {
+      "post": {
+        "operationId": "SummaryController_printCopy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "visits"
+        ]
+      }
+    },
     "/admin/users": {
       "get": {
         "operationId": "AdminController_users",

@@ -17,6 +17,11 @@ import { RealtimeGateway } from './realtime/realtime.gateway';
 import { APP_VERSION } from './tokens';
 import { MedicinesController } from './medicines/medicines.controller';
 import { MedicinesService } from './medicines/medicines.service';
+import { MemoryFileStore, type FileStore } from './files/file-store';
+import { InlineJobQueue, type JobQueue } from './jobs/job-queue';
+import { FILES, JOBS } from './jobs/tokens';
+import { SummaryController } from './summary/summary.controller';
+import { SummaryService } from './summary/summary.service';
 import { PatientsController } from './patients/patients.controller';
 import { PatientsService } from './patients/patients.service';
 import { DiagnosesController } from './visits/diagnoses.controller';
@@ -29,6 +34,10 @@ export interface AppDeps {
   cognitoAdmin: CognitoAdmin;
   version: string;
   statusTtlMs?: number;
+  /** Private files (DIG-72). Defaults to memory (local runs and tests). */
+  files?: FileStore;
+  /** Background jobs (DIG-72). Defaults to running them in-process straight away. */
+  jobs?: JobQueue;
 }
 
 /**
@@ -48,6 +57,7 @@ export class AppModule {
         VisitsController,
         DiagnosesController,
         MedicinesController,
+        SummaryController,
         AdminController,
       ],
       providers: [
@@ -55,6 +65,8 @@ export class AppModule {
         { provide: TokenVerifier, useValue: deps.verifier },
         { provide: CognitoAdmin, useValue: deps.cognitoAdmin },
         { provide: APP_VERSION, useValue: deps.version },
+        { provide: FILES, useValue: deps.files ?? new MemoryFileStore() },
+        { provide: JOBS, useValue: deps.jobs ?? new InlineJobQueue() },
         { provide: STATUS_TTL, useValue: deps.statusTtlMs ?? STATUS_TTL_MS },
         AuthService,
         AuditService,
@@ -62,6 +74,7 @@ export class AppModule {
         PatientsService,
         VisitsService,
         MedicinesService,
+        SummaryService,
         AdminService,
         QueueResetScheduler,
         RealtimeGateway,

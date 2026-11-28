@@ -15,6 +15,10 @@ export interface AppConfig {
     issuer: string;
   };
   sarvamApiKey: string | null;
+  /** Private files bucket (DIG-31); null locally, where files stay in memory. */
+  filesBucket: string | null;
+  /** Background-job queue (DIG-31); null locally, where jobs run in-process. */
+  jobsQueueUrl: string | null;
 }
 
 /** Shape of the JSON secret created by the CDK data stack (RDS-generated + app keys). */
@@ -92,5 +96,7 @@ export async function loadConfig(
       issuer,
     },
     sarvamApiKey,
+    filesBucket: env.FILES_BUCKET || null,
+    jobsQueueUrl: env.JOBS_QUEUE_URL || null,
   };
 }

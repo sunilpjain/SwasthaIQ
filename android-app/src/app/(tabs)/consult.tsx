@@ -30,17 +30,17 @@ import {
   toggleInvestigation,
   VITALS,
   vitalWarning,
-} from '../../consult/consult-fields';
+} from '@swasthyaiq/shared';
 import { isSameDayEdit } from '../../consult/amend';
 import { forgetDraft, getDraft, keepDraft } from '../../consult/draft-registry';
-import { buildReview, signErrorCode } from '../../consult/review';
+import { buildReview, signErrorCode } from '@swasthyaiq/shared';
 import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
 import { suggestDiagnoses } from '../../consult/icd10/suggestions';
 import PhraseChips from '../../consult/PhraseChips';
-import { allergyEntries, checkRx, overridesFor } from '../../consult/rx/rx-checks';
+import { allergyEntries, checkRx, overridesFor } from '@swasthyaiq/shared';
 import RxSection, { cachedMedicines } from '../../consult/rx/RxSection';
 import { doctorLabel } from '../../patient/summary-view';
 import {
@@ -53,7 +53,7 @@ import {
   PROCEDURE_CHIPS,
 } from '../../consult/pick-lists';
 import { GastroExamCard, GastroPlanChips } from '../../consult/GastroSections';
-import { addEyeTag } from '../../consult/eye-fields';
+import { addEyeTag } from '@swasthyaiq/shared';
 import {
   DilatationCard,
   ExamCard,
