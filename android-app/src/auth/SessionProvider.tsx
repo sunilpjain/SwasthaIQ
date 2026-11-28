@@ -3,6 +3,7 @@ import { AppState, View } from 'react-native';
 import type { UserSummary } from '@swasthyaiq/shared';
 import { ApiClient } from '../api/client';
 import { clearDrafts } from '../consult/draft-registry';
+import { clearPdfs } from '../summary/pdf-files';
 import { env } from '../config/env';
 import { CognitoClient } from './cognito';
 import { deviceBiometrics, secureStore } from './device';
@@ -14,7 +15,14 @@ export const session = new SessionManager({
   store: secureStore,
   biometrics: deviceBiometrics,
   // Log out and remote sign-out wipe what this phone holds about patients.
-  wipe: async () => clearDrafts(),
+  wipe: async () => {
+    clearDrafts();
+    try {
+      clearPdfs(); // saved A4 summaries hold patient data (DIG-73)
+    } catch {
+      // cache already gone
+    }
+  },
 });
 
 export const api = new ApiClient(

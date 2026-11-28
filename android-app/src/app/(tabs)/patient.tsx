@@ -205,6 +205,16 @@ export default function PatientScreen() {
               </Text>
               <Text style={styles.diagnosis}>{last.diagnosis}</Text>
               {last.rx ? <Text style={cardStyles.lineText}>{last.rx}</Text> : null}
+              {d.lastVisit ? (
+                <Pressable
+                  style={styles.editLink}
+                  onPress={() => router.push({ pathname: '/summary', params: { visitId: d.lastVisit!.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the last visit's A4 summary"
+                >
+                  <Text style={styles.outlineText}>A4 summary</Text>
+                </Pressable>
+              ) : null}
               {d.lastVisit && canEdit(d.lastVisit, myId) ? (
                 <Pressable
                   style={styles.editLink}
@@ -296,6 +306,19 @@ export default function PatientScreen() {
                   {versionTag(v, now, istTime) ? ` · ${versionTag(v, now, istTime)}` : ''}
                 </Text>
                 <Text style={styles.diagnosis}>{v.diagnosis ?? 'No diagnosis recorded'}</Text>
+                {v.status === 'signed' ? (
+                  <Pressable
+                    style={styles.editLink}
+                    onPress={() => {
+                      setTimelineOpen(false);
+                      router.push({ pathname: '/summary', params: { visitId: v.id } });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open the A4 summary of ${shortDate(v.visitDate, true)}`}
+                  >
+                    <Text style={styles.outlineText}>A4 summary</Text>
+                  </Pressable>
+                ) : null}
                 {canEdit(v, myId) ? (
                   <Pressable
                     style={styles.editLink}

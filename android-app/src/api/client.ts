@@ -13,7 +13,9 @@ import type {
   VisitDetail,
   MedicineCatalogue,
   MedicineFavourite,
+  PrintCopyInput,
   SignInput,
+  SummaryDocument,
   VisitAmendmentInput,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -121,8 +123,46 @@ export class ApiClient {
   medicineFavourites(): Promise<MedicineFavourite[]> {
     return this.request('GET', '/medicines/favourites');
   }
+  /** The A4 summary as data, for the print-copy editor (DIG-73). */
+  summary(visitId: string): Promise<SummaryDocument> {
+    return this.request('GET', `/visits/${encodeURIComponent(visitId)}/summary`);
+  }
+  /** The A4 PDF of the latest version (DIG-72): stored for a signed visit, live for a draft. */
+  summaryPdf(visitId: string): Promise<Uint8Array> {
+    return this.binary('GET', `/visits/${encodeURIComponent(visitId)}/summary.pdf`);
+  }
+  /** A reworded printout (DIG-73): not saved, not written back to the visit. */
+  printCopyPdf(visitId: string, input: PrintCopyInput): Promise<Uint8Array> {
+    return this.binary('POST', `/visits/${encodeURIComponent(visitId)}/print-copy`, input);
+  }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);
+  }
+
+  /** A binary (PDF) response; errors are JSON like every other call. */
+  private async binary(method: string, path: string, body?: object): Promise<Uint8Array> {
+    const token = await this.getToken();
+    if (!token) throw new ApiError(401, 'not_signed_in', 'Please sign in');
+    const headers: Record<string, string> = { Accept: 'application/pdf', Authorization: `Bearer ${token}` };
+    if (body) headers['Content-Type'] = 'application/json';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs * 2);
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        signal: controller.signal,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());
+    } catch {
+      throw new ApiError(0, 'network', 'Offline — try again when connected');
+    } finally {
+      clearTimeout(timer);
+    }
+    const b = ((await res.json().catch(() => null)) ?? {}) as { code?: string; message?: string };
+    throw new ApiError(res.status, b.code ?? `http_${res.status}`, b.message ?? 'Something went wrong');
   }
 
   private async request<T>(method: string, path: string, auth = true, body?: object): Promise<T> {

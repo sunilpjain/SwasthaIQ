@@ -378,6 +378,16 @@ export default function ConsultScreen() {
   }
 
   const visitId = d.state.visitId;
+
+  /** DIG-73: save what is typed, then show the draft's A4. */
+  async function previewA4() {
+    await d.flush();
+    if (d.state.unsaved > 0) {
+      Alert.alert('Not saved yet', 'The preview needs the note saved. Try again when you are online.');
+      return;
+    }
+    router.push({ pathname: '/summary', params: { visitId } });
+  }
   const editAgain = () => {
     if (edit === visitId) {
       setMode('edit');
@@ -441,12 +451,14 @@ export default function ConsultScreen() {
             setMode('edit');
           }}
           onSign={() => void signNow()}
+          onPreview={() => void previewA4()}
         />
       ) : mode === 'signed' ? (
         <SignedBody
           signedAt={signedAt}
           version={savedVersion}
           onEditNote={editAgain}
+          onSummary={() => router.push({ pathname: '/summary', params: { visitId } })}
           onQueue={() => router.navigate('/')}
           onPatient={() => router.navigate({ pathname: '/patient', params: { id: p.id } })}
         />
