@@ -19,6 +19,8 @@ const SAIYAM = 'u-saiyam';
 const line = (o: Partial<RxLine> = {}): RxLine => ({
   id: 'l1',
   medicineBrand: 'Brand',
+  medicineId: null,
+  route: 'oral',
   medicineGeneric: 'ursodeoxycholic acid 300 mg',
   form: 'Tablet',
   eye: null,

@@ -98,6 +98,7 @@ export interface VisitsTable {
     Date | string | null | undefined,
     Date | string | null
   >;
+  rx_client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
   investigations_client_updated_at: ColumnType<
     Date | null,
     Date | string | null | undefined,
@@ -155,7 +156,9 @@ export interface RxLinesTable {
   id: Generated<string>;
   prescription_id: string;
   position: number;
-  medicine_brand: string;
+  medicine_brand: string | null;
+  medicine_id: string | null;
+  route: 'oral' | 'eye' | null;
   medicine_generic: string;
   form: string;
   eye: 'RE' | 'LE' | 'BE' | null;
@@ -168,6 +171,16 @@ export interface RxLinesTable {
   instructions_local: string | null;
   instructions_language: 'mr' | 'hi' | 'gu' | null;
   source: Generated<'dictated' | 'scanned' | 'typed'>;
+}
+
+export interface RxOverridesTable {
+  id: Generated<string>;
+  visit_id: string;
+  rx_line_id: string;
+  kind: 'allergy' | 'duplicate';
+  rule: string;
+  overridden_by: string;
+  created_at: Generated<Date>;
 }
 
 export interface AttachmentsTable {
@@ -246,6 +259,7 @@ export interface Database {
   consult_fields: ConsultFieldsTable;
   prescriptions: PrescriptionsTable;
   rx_lines: RxLinesTable;
+  rx_overrides: RxOverridesTable;
   attachments: AttachmentsTable;
   lab_reports: LabReportsTable;
   lab_values: LabValuesTable;

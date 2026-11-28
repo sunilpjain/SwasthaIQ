@@ -15,6 +15,8 @@ import { DB, type Db } from './db/database';
 import { HealthController } from './health/health.controller';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { APP_VERSION } from './tokens';
+import { MedicinesController } from './medicines/medicines.controller';
+import { MedicinesService } from './medicines/medicines.service';
 import { PatientsController } from './patients/patients.controller';
 import { PatientsService } from './patients/patients.service';
 import { DiagnosesController } from './visits/diagnoses.controller';
@@ -45,6 +47,7 @@ export class AppModule {
         PatientsController,
         VisitsController,
         DiagnosesController,
+        MedicinesController,
         AdminController,
       ],
       providers: [
@@ -58,6 +61,7 @@ export class AppModule {
         ClinicService,
         PatientsService,
         VisitsService,
+        MedicinesService,
         AdminService,
         QueueResetScheduler,
         RealtimeGateway,

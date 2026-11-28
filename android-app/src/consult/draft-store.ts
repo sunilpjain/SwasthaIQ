@@ -2,6 +2,7 @@ import type {
   CaptureSource,
   Diagnosis,
   InvestigationOrder,
+  RxLineInput,
   VisitAmendmentInput,
   VisitDetail,
   VisitDraftInput,
@@ -37,6 +38,8 @@ export interface DraftState {
   investigations: InvestigationOrder[];
   /** Diagnoses with their tags (DIG-53); at least one is needed to sign. */
   diagnoses: Diagnosis[];
+  /** The prescription (DIG-70), saved whole like the diagnoses. */
+  rxLines: RxLineInput[];
   followUp: string | null;
   status: SaveStatus;
   lastSavedAt: string | null;
@@ -62,13 +65,17 @@ export class DraftStore {
   private dirtyFields = new Set<string>();
   private investigationsAt: string | null = null;
   private diagnosesAt: string | null = null;
+  private rxAt: string | null = null;
   private followUpDirty = false;
   private timer: unknown = null;
   private saving: Promise<void> | null = null;
   private again = false;
   /** DIG-97: editing a signed visit. Edits stay on the phone until saved as an amendment. */
   private readonly editing: boolean;
-  private readonly original: Pick<DraftState, 'fields' | 'investigations' | 'diagnoses' | 'followUp'>;
+  private readonly original: Pick<
+    DraftState,
+    'fields' | 'investigations' | 'diagnoses' | 'rxLines' | 'followUp'
+  >;
 
   constructor(
     private readonly api: DraftApi,
@@ -91,14 +98,15 @@ export class DraftStore {
       fields,
       investigations: init.existing?.investigations ?? [],
       diagnoses: init.existing?.diagnoses ?? [],
+      rxLines: (init.existing?.rxLines ?? []).map(({ medicineBrand: _brand, ...l }) => l),
       followUp: init.existing?.followUp ?? null,
       status: init.edit ? 'editing' : init.existing ? 'saved' : 'idle',
       lastSavedAt: null,
       unsaved: 0,
     };
     this.editing = !!init.edit;
-    const { fields: f, investigations, diagnoses, followUp } = this.current;
-    this.original = { fields: f, investigations, diagnoses, followUp };
+    const { fields: f, investigations, diagnoses, rxLines, followUp } = this.current;
+    this.original = { fields: f, investigations, diagnoses, rxLines, followUp };
   }
 
   /**
@@ -120,8 +128,14 @@ export class DraftStore {
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     if (!same(c.diagnoses, o.diagnoses)) input.diagnoses = c.diagnoses;
     if (!same(c.investigations, o.investigations)) input.investigations = c.investigations;
+    if (!same(c.rxLines, o.rxLines)) input.rxLines = c.rxLines;
     if (c.followUp !== o.followUp) input.followUp = c.followUp;
-    const changed = input.fields || input.diagnoses || input.investigations || input.followUp !== undefined;
+    const changed =
+      input.fields ||
+      input.diagnoses ||
+      input.investigations ||
+      input.rxLines ||
+      input.followUp !== undefined;
     return changed ? input : null;
   }
 
@@ -162,6 +176,13 @@ export class DraftStore {
     if (this.current.status === 'signed') return;
     this.diagnosesAt = this.now().toISOString();
     this.set({ diagnoses: list });
+    this.schedule();
+  }
+
+  setRxLines(list: RxLineInput[]): void {
+    if (this.current.status === 'signed') return;
+    this.rxAt = this.now().toISOString();
+    this.set({ rxLines: list });
     this.schedule();
   }
 
@@ -209,6 +230,7 @@ export class DraftStore {
       this.dirtyFields.size +
       (this.investigationsAt ? 1 : 0) +
       (this.diagnosesAt ? 1 : 0) +
+      (this.rxAt ? 1 : 0) +
       (this.followUpDirty ? 1 : 0)
     );
   }
@@ -238,6 +260,8 @@ export class DraftStore {
     const investigations = this.current.investigations;
     const diagnosesAt = this.diagnosesAt;
     const diagnoses = this.current.diagnoses;
+    const rxAt = this.rxAt;
+    const rxLines = this.current.rxLines;
     const followUpDirty = this.followUpDirty;
     const followUp = this.current.followUp;
 
@@ -259,6 +283,10 @@ export class DraftStore {
       input.diagnoses = diagnoses;
       input.diagnosesClientUpdatedAt = diagnosesAt;
     }
+    if (rxAt) {
+      input.rxLines = rxLines;
+      input.rxClientUpdatedAt = rxAt;
+    }
     if (followUpDirty) input.followUp = followUp;
 
     this.set({ status: 'saving', unsaved: this.pendingCount() });
@@ -269,6 +297,7 @@ export class DraftStore {
       }
       if (this.investigationsAt === investigationsAt) this.investigationsAt = null;
       if (this.diagnosesAt === diagnosesAt) this.diagnosesAt = null;
+      if (this.rxAt === rxAt) this.rxAt = null;
       if (followUpDirty && this.current.followUp === followUp) this.followUpDirty = false;
       this.set({ status: 'saved', lastSavedAt: this.now().toISOString(), unsaved: this.pendingCount() });
     } catch (e) {

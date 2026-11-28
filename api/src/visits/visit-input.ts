@@ -5,11 +5,18 @@ import {
   DIAGNOSIS_KINDS,
   DIAGNOSIS_ROLES,
   EYE_SIDES,
+  EYES,
   ICD10_CODE_RE,
+  LANGUAGES,
+  MEDICINE_ROUTES,
+  RX_WARNING_KINDS,
   type CaptureSource,
   type ConsultFieldInput,
   type Diagnosis,
   type InvestigationOrder,
+  type RxLineInput,
+  type RxOverride,
+  type SignInput,
   type VisitAmendmentInput,
   type VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -31,7 +38,13 @@ export const LIMITS = {
   reasonChars: 500,
   investigations: 30,
   testNameChars: 120,
+  rxLines: 30,
+  rxTextChars: 200,
+  rxInstructionChars: 500,
 } as const;
+
+const MEDICINE_ID_RE = /^[a-z0-9-]{1,64}$/;
+const RULE_RE = /^[a-z0-9:-]{1,64}$/;
 
 const TEST_CODE_RE = /^[A-Z0-9_]{1,20}$/;
 
@@ -174,6 +187,71 @@ export function parseInvestigations(v: unknown, path: string): InvestigationOrde
   });
 }
 
+/** Optional text: null or a string up to `max` characters; blank becomes null. */
+function optText(o: Record<string, unknown>, k: string, path: string, max: number): string | null {
+  if (o[k] === undefined || o[k] === null) return null;
+  return str(o, k, path, max, true).trim() || null;
+}
+
+/** The prescription (DIG-70). Eye is checked at sign time (DIG-71), so a draft may lack it. */
+export function parseRxLines(v: unknown, path: string): RxLineInput[] {
+  const lines = array(v, path, LIMITS.rxLines).map((l, i): RxLineInput => {
+    const p = `${path}[${i}]`;
+    if (!isObject(l)) bad(p, 'must be an object');
+    if (typeof l.id !== 'string' || !UUID_RE.test(l.id)) bad(`${p}.id`, 'must be a UUID');
+    let medicineId: string | null = null;
+    if (l.medicineId !== undefined && l.medicineId !== null) {
+      if (typeof l.medicineId !== 'string' || !MEDICINE_ID_RE.test(l.medicineId)) {
+        bad(`${p}.medicineId`, 'must be a catalogue id');
+      }
+      medicineId = l.medicineId;
+    }
+    const language = oneOf(l, 'instructionsLanguage', p, LANGUAGES) ?? null;
+    if (language === 'en') bad(`${p}.instructionsLanguage`, 'must be mr, hi or gu');
+    const instructionsLocal = optText(l, 'instructionsLocal', p, LIMITS.rxInstructionChars);
+    if (instructionsLocal && !language) bad(`${p}.instructionsLanguage`, 'is needed with instructionsLocal');
+    return {
+      id: l.id.toLowerCase(),
+      medicineId,
+      route: oneOf(l, 'route', p, MEDICINE_ROUTES) ?? null,
+      medicineGeneric: str(l, 'medicineGeneric', p, LIMITS.rxTextChars).trim(),
+      form: str(l, 'form', p, LIMITS.rxTextChars).trim(),
+      eye: oneOf(l, 'eye', p, EYES) ?? null,
+      dose: str(l, 'dose', p, LIMITS.rxTextChars, true).trim(),
+      frequency: str(l, 'frequency', p, LIMITS.rxTextChars, true).trim(),
+      timing: optText(l, 'timing', p, LIMITS.rxTextChars),
+      duration: str(l, 'duration', p, LIMITS.rxTextChars, true).trim(),
+      taper: optText(l, 'taper', p, LIMITS.rxInstructionChars),
+      instructionsEn: optText(l, 'instructionsEn', p, LIMITS.rxInstructionChars),
+      instructionsLocal,
+      instructionsLanguage: instructionsLocal ? (language as Exclude<typeof language, 'en'>) : null,
+    };
+  });
+  const ids = new Set(lines.map((l) => l.id));
+  if (ids.size !== lines.length) bad(path, 'has a line id more than once');
+  return lines;
+}
+
+/** Rx warnings the doctor signed or saved past (DIG-71): rule ids only. */
+export function parseOverrides(v: unknown, path: string): RxOverride[] {
+  return array(v, path, 100).map((o, i) => {
+    const p = `${path}[${i}]`;
+    if (!isObject(o)) bad(p, 'must be an object');
+    if (typeof o.rxLineId !== 'string' || !UUID_RE.test(o.rxLineId)) bad(`${p}.rxLineId`, 'must be a UUID');
+    const kind = oneOf(o, 'kind', p, RX_WARNING_KINDS);
+    if (!kind) bad(`${p}.kind`, `must be one of ${RX_WARNING_KINDS.join(', ')}`);
+    if (typeof o.rule !== 'string' || !RULE_RE.test(o.rule)) bad(`${p}.rule`, 'must be a rule id');
+    return { rxLineId: o.rxLineId.toLowerCase(), kind, rule: o.rule };
+  });
+}
+
+/** Body of POST /visits/:id/sign: optional, for the overrides. */
+export function parseSign(body: unknown): SignInput {
+  if (body === undefined || body === null || (isObject(body) && Object.keys(body).length === 0)) return {};
+  if (!isObject(body)) bad('body', 'must be a JSON object');
+  return body.overrides === undefined ? {} : { overrides: parseOverrides(body.overrides, 'overrides') };
+}
+
 export function parseDraft(body: unknown): VisitDraftInput {
   if (!isObject(body)) bad('body', 'must be a JSON object');
   if (typeof body.patientId !== 'string' || !UUID_RE.test(body.patientId)) bad('patientId', 'must be a UUID');
@@ -197,6 +275,12 @@ export function parseDraft(body: unknown): VisitDraftInput {
     );
   } else if (body.investigationsClientUpdatedAt !== undefined) {
     bad('investigationsClientUpdatedAt', 'is only allowed with investigations');
+  }
+  if (body.rxLines !== undefined) {
+    out.rxLines = parseRxLines(body.rxLines, 'rxLines');
+    out.rxClientUpdatedAt = timestamp(body.rxClientUpdatedAt, 'rxClientUpdatedAt');
+  } else if (body.rxClientUpdatedAt !== undefined) {
+    bad('rxClientUpdatedAt', 'is only allowed with rxLines');
   }
   if (body.followUp !== undefined) {
     out.followUp = body.followUp === null ? null : isoDate(body.followUp, 'followUp');
@@ -228,8 +312,16 @@ export function parseAmendment(body: unknown): VisitAmendmentInput {
   if (body.followUp !== undefined) {
     out.followUp = body.followUp === null ? null : isoDate(body.followUp, 'followUp');
   }
-  if (!out.fields?.length && !out.diagnoses && !out.investigations && out.followUp === undefined) {
-    bad('body', 'must change at least one field, the diagnoses, the tests or the follow-up');
+  if (body.rxLines !== undefined) out.rxLines = parseRxLines(body.rxLines, 'rxLines');
+  if (body.overrides !== undefined) out.overrides = parseOverrides(body.overrides, 'overrides');
+  if (
+    !out.fields?.length &&
+    !out.diagnoses &&
+    !out.investigations &&
+    !out.rxLines &&
+    out.followUp === undefined
+  ) {
+    bad('body', 'must change at least one field, the diagnoses, the tests, the Rx or the follow-up');
   }
   return out;
 }

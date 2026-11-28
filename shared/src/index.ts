@@ -91,7 +91,13 @@ export interface ConsultField {
 
 export interface RxLine {
   id: string;
-  medicineBrand: string;
+  /** Seed data only; new lines are generic-only (decision 20 Nov). */
+  medicineBrand: string | null;
+  /** Catalogue item the line came from (DIG-69), or null when typed freely. */
+  medicineId: string | null;
+  /** "eye" lines need OD / OS / OU (RE / LE / BE on the wire) before signing (DIG-71). */
+  route: 'oral' | 'eye' | null;
+  /** Generic and strength, e.g. "pantoprazole 40 mg". */
   medicineGeneric: string;
   form: string;
   eye: Eye | null;
@@ -213,6 +219,9 @@ export interface ConsultFieldInput {
   clientUpdatedAt: string;
 }
 
+/** An Rx line as sent by the app (DIG-70). `id` is picked by the app (a UUID). */
+export type RxLineInput = Omit<RxLine, 'medicineBrand'>;
+
 /**
  * Body of PUT /visits/:id (draft save). The app picks the visit id (a UUID) itself, so a save
  * queued offline and retried is idempotent: the first call creates the draft, later calls update it.
@@ -227,6 +236,9 @@ export interface VisitDraftInput {
   /** Tests ordered at this visit (DIG-50). Replaces the whole list, same rule as diagnoses. */
   investigations?: InvestigationOrder[];
   investigationsClientUpdatedAt?: string;
+  /** The prescription (DIG-70). Replaces the whole list, same rule as diagnoses. */
+  rxLines?: RxLineInput[];
+  rxClientUpdatedAt?: string;
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
@@ -242,6 +254,10 @@ export interface VisitAmendmentInput {
   fields?: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses?: Diagnosis[];
   investigations?: InvestigationOrder[];
+  /** The whole prescription after the edit (DIG-70). */
+  rxLines?: RxLineInput[];
+  /** Rx warnings the doctor saved past (DIG-71). */
+  overrides?: RxOverride[];
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
@@ -256,6 +272,7 @@ export interface VisitAmendment {
   fields: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses: Diagnosis[] | null;
   investigations: InvestigationOrder[] | null;
+  rxLines: RxLineInput[] | null;
   /** Absent when the follow-up was not changed. */
   followUp?: string | null;
   createdAt: string;
@@ -263,9 +280,30 @@ export interface VisitAmendment {
 
 /** Why a sign was refused (422 `sign_blocked`). */
 export interface SignProblem {
-  code: 'no_diagnosis' | 'unconfirmed_fields';
+  code: 'no_diagnosis' | 'unconfirmed_fields' | 'rx_eye_missing';
   /** For unconfirmed_fields: "section.key" of each field still waiting for the doctor. */
   fields?: string[];
+  /** For rx_eye_missing (DIG-71): ids of eye-medicine lines with no OD / OS / OU. */
+  rxLines?: string[];
+}
+
+/** Advisory Rx warnings (DIG-71). They never block; signing past one is logged as an override. */
+export const RX_WARNING_KINDS = ['allergy', 'duplicate'] as const;
+export type RxWarningKind = (typeof RX_WARNING_KINDS)[number];
+
+/**
+ * A warning the doctor signed past. `rule` names the rule, never clinical text, e.g.
+ * "allergy:penicillin", "duplicate:class:ppi", "duplicate:other-doctor".
+ */
+export interface RxOverride {
+  rxLineId: string;
+  kind: RxWarningKind;
+  rule: string;
+}
+
+/** Body of POST /visits/:id/sign (optional). */
+export interface SignInput {
+  overrides?: RxOverride[];
 }
 
 export const CONDITION_STATUSES = ['active', 'controlled', 'resolved'] as const;
@@ -386,4 +424,84 @@ export function sortQueue<T extends { isMine: boolean; appointmentAt: string; pa
     if (a.appointmentAt !== b.appointmentAt) return a.appointmentAt < b.appointmentAt ? -1 : 1;
     return a.patient.token.localeCompare(b.patient.token, 'en', { numeric: true });
   });
+}
+
+// ---------------------------------------------------------------- medicines (DIG-69)
+
+/** Where a medicine goes. Eye routes need OD / OS / OU on every Rx line (DIG-70/71). */
+export const MEDICINE_ROUTES = ['oral', 'eye'] as const;
+export type MedicineRoute = (typeof MEDICINE_ROUTES)[number];
+
+/**
+ * Drug classes the allergy check matches against the patient's allergies (DIG-71). A patient
+ * allergic to a class is warned about every medicine in it.
+ */
+export const ALLERGY_CLASSES = [
+  'penicillin',
+  'cephalosporin',
+  'sulfonamide',
+  'nsaid',
+  'fluoroquinolone',
+  'aminoglycoside',
+  'nitroimidazole',
+  'tetracycline',
+  'opioid',
+] as const;
+export type AllergyClass = (typeof ALLERGY_CLASSES)[number];
+
+/** Usual sig for a medicine, used to pre-fill a new Rx line. Frequency is 4-slot (1-0-0-1). */
+export interface MedicineDefaults {
+  dose: string;
+  frequency: string;
+  timing: string | null;
+  duration: string;
+  /** e.g. "6× a day for 1 week, then 4×, 3×, 2×, 1× a day, one week each". */
+  taper?: string | null;
+}
+
+/**
+ * One catalogue item. Generic names only (decision 20 Nov): no brands. Indicative, not a
+ * validated formulary.
+ */
+export interface Medicine {
+  /** Stable slug, e.g. "pantoprazole-40-tab". */
+  id: string;
+  specialty: Specialty;
+  /** Lower-case generic, e.g. "pantoprazole". */
+  generic: string;
+  /** e.g. "40 mg", "0.5%". */
+  strength: string;
+  /** e.g. "Tablet", "Eye drops". */
+  form: string;
+  route: MedicineRoute;
+  /** Therapeutic class, used by the duplicate check, e.g. "ppi", "prostaglandin". */
+  therapeuticClass: string;
+  allergyClasses: AllergyClass[];
+  defaults: MedicineDefaults;
+}
+
+/** A line of an order set: a catalogue medicine with the set's own sig where it differs. */
+export interface OrderSetLine extends Partial<MedicineDefaults> {
+  medicineId: string;
+}
+
+export interface OrderSet {
+  id: string;
+  specialty: Specialty;
+  name: string;
+  lines: OrderSetLine[];
+}
+
+/** GET /medicines: the catalogue and order sets for the doctor's specialty. */
+export interface MedicineCatalogue {
+  /** Shown in the picker: the list is indicative, not a validated formulary. */
+  note: string;
+  medicines: Medicine[];
+  orderSets: OrderSet[];
+}
+
+/** GET /medicines/favourites: the doctor's most-prescribed catalogue items. */
+export interface MedicineFavourite {
+  medicineId: string;
+  uses: number;
 }

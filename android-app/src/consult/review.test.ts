@@ -27,6 +27,24 @@ describe('review before signing (DIG-95)', () => {
       },
       diagnoses: [gerd],
       investigations: [{ testName: 'LFT', testCode: 'ALT' }],
+      rxLines: [
+        {
+          id: 'l1',
+          medicineId: 'pantoprazole-40-tab',
+          route: 'oral',
+          medicineGeneric: 'pantoprazole 40 mg',
+          form: 'Tablet',
+          eye: null,
+          dose: '1',
+          frequency: '1-0-0-0',
+          timing: 'before food',
+          duration: '2 weeks',
+          taper: null,
+          instructionsEn: null,
+          instructionsLocal: null,
+          instructionsLanguage: null,
+        },
+      ],
       followUp: '2026-12-09',
       knownAllergies: [],
       now,
@@ -38,6 +56,7 @@ describe('review before signing (DIG-95)', () => {
       'Systemic examination',
       'Diagnosis (ICD-10)',
       'Investigation order',
+      'Medication order',
       'Plan',
       'Advice',
       'Follow-up',
@@ -54,7 +73,10 @@ describe('review before signing (DIG-95)', () => {
     expect(r.sections[4]!.lines[0]!.text).toBe(
       'K21.9 Gastro-esophageal reflux disease without esophagitis — Primary · Provisional',
     );
-    expect(r.sections[8]!.lines[0]!.text).toBe('In 2 weeks · Wed 9 Dec (9 Dec 2026)');
+    expect(r.sections[6]!.lines[0]!.text).toBe(
+      'Pantoprazole 40 mg · Tablet — 1 · 1-0-0-0 · oral · before food · 2 weeks · Qty 14',
+    );
+    expect(r.sections[9]!.lines[0]!.text).toBe('In 2 weeks · Wed 9 Dec (9 Dec 2026)');
     expect(r.blocking).toEqual([]);
     expect(r.warnings).toEqual([]);
   });
@@ -131,5 +153,37 @@ describe('review before signing (DIG-95)', () => {
     expect(signErrorCode(0, 'network')).toBe('SIGN-NET');
     expect(signErrorCode(503, 'http_503')).toBe('SIGN-503');
     expect(signErrorCode(0, 'not_saved')).toBe('SIGN-SAVE');
+  });
+  it('blocks signing until eye medicines have an eye, and lists Rx warnings (DIG-71)', () => {
+    const r = buildReview({
+      specialty: 'eye',
+      fields: {},
+      diagnoses: [],
+      investigations: [],
+      rxLines: [
+        {
+          id: 'd1',
+          medicineId: 'timolol-05-drops',
+          route: 'eye',
+          medicineGeneric: 'timolol 0.5%',
+          form: 'Eye drops',
+          eye: null,
+          dose: '1 drop',
+          frequency: '1-0-0-1',
+          timing: null,
+          duration: '3 months',
+          taper: null,
+          instructionsEn: null,
+          instructionsLocal: null,
+          instructionsLanguage: null,
+        },
+      ],
+      rxWarnings: ['Timolol: listed as an allergy.'],
+      followUp: null,
+      knownAllergies: [],
+      now: new Date('2026-11-28T05:00:00Z'),
+    });
+    expect(r.blocking).toContain('Choose the eye (OD, OS or OU) for 1 eye medicine.');
+    expect(r.warnings[0]).toBe('Timolol: listed as an allergy.');
   });
 });

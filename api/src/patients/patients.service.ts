@@ -16,6 +16,7 @@ import type {
   PendingTest,
   PrescriptionSummary,
   RxLine,
+  RxLineInput,
   VisitSummary,
 } from '@swasthyaiq/shared';
 import { sql } from 'kysely';
@@ -27,7 +28,9 @@ import { assertUuid, isUuid, PATIENT_COLS, toPatient } from './patient-row';
 type RxRow = {
   id: string;
   prescription_id: string;
-  medicine_brand: string;
+  medicine_brand: string | null;
+  medicine_id: string | null;
+  route: 'oral' | 'eye' | null;
   medicine_generic: string;
   form: string;
   eye: 'RE' | 'LE' | 'BE' | null;
@@ -45,6 +48,8 @@ export function toRxLine(l: RxRow): RxLine {
   return {
     id: l.id,
     medicineBrand: l.medicine_brand,
+    medicineId: l.medicine_id,
+    route: l.route,
     medicineGeneric: l.medicine_generic,
     form: l.form,
     eye: l.eye,
@@ -332,11 +337,14 @@ export class PatientsService {
     }));
   }
 
-  /** Every signed visit's prescription that has at least one line, newest first. */
+  /**
+   * Every signed visit's prescription that has at least one line, newest first. An edit after
+   * signing (DIG-97) that changed the Rx replaces the signed lines, so the latest version shows.
+   */
   private async signedPrescriptions(patientId: string): Promise<PrescriptionSummary[]> {
     const heads = await this.db
-      .selectFrom('prescriptions')
-      .innerJoin('visits', 'visits.id', 'prescriptions.visit_id')
+      .selectFrom('visits')
+      .leftJoin('prescriptions', 'prescriptions.visit_id', 'visits.id')
       .innerJoin('users', 'users.id', 'visits.doctor_id')
       .select([
         'prescriptions.id',
@@ -353,16 +361,29 @@ export class PatientsService {
       .orderBy('visits.signed_at', 'desc')
       .execute();
     if (!heads.length) return [];
-    const lines = await this.db
-      .selectFrom('rx_lines')
-      .selectAll()
-      .where(
-        'prescription_id',
-        'in',
-        heads.map((h) => h.id),
-      )
-      .orderBy('position')
-      .execute();
+    const rxIds = heads.flatMap((h) => (h.id ? [h.id] : []));
+    const lines = rxIds.length
+      ? await this.db
+          .selectFrom('rx_lines')
+          .selectAll()
+          .where('prescription_id', 'in', rxIds)
+          .orderBy('position')
+          .execute()
+      : [];
+    const amended = await sql<{ visit_id: string; rx: RxLineInput[] | string }>`
+      SELECT DISTINCT ON (visit_id) visit_id, changes->'rxLines' AS rx
+      FROM visit_amendments
+      WHERE visit_id IN (${sql.join(heads.map((h) => h.visit_id))}) AND changes ? 'rxLines'
+      ORDER BY visit_id, version DESC`.execute(this.db);
+    const latest = new Map(
+      amended.rows.map((r) => [
+        r.visit_id,
+        (typeof r.rx === 'string' ? (JSON.parse(r.rx) as RxLineInput[]) : r.rx).map((l): RxLine => ({
+          ...l,
+          medicineBrand: null,
+        })),
+      ]),
+    );
     return heads
       .map((h) => ({
         visitId: h.visit_id,
@@ -371,7 +392,7 @@ export class PatientsService {
         doctorName: h.display_name,
         doctorSpecialty: h.specialty,
         advice: h.advice,
-        lines: lines.filter((l) => l.prescription_id === h.id).map(toRxLine),
+        lines: latest.get(h.visit_id) ?? lines.filter((l) => l.prescription_id === h.id).map(toRxLine),
       }))
       .filter((rx) => rx.lines.length > 0);
   }

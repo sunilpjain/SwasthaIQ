@@ -256,6 +256,7 @@ describe('visits and consult note (DIG-41)', () => {
             diagnosedOn: null,
           })),
           investigations: null,
+          rxLines: null,
           createdAt: expect.any(String),
         },
       ]);

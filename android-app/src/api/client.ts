@@ -11,6 +11,9 @@ import type {
   QueueEntry,
   UserSummary,
   VisitDetail,
+  MedicineCatalogue,
+  MedicineFavourite,
+  SignInput,
   VisitAmendmentInput,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -99,8 +102,8 @@ export class ApiClient {
     return this.request('PUT', `/visits/${encodeURIComponent(visitId)}`, true, input);
   }
   /** Sign (DIG-41): checks a diagnosis is present, locks the visit and sets the queue entry to Done. */
-  signVisit(visitId: string): Promise<VisitDetail> {
-    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`);
+  signVisit(visitId: string, input: SignInput = {}): Promise<VisitDetail> {
+    return this.request('POST', `/visits/${encodeURIComponent(visitId)}/sign`, true, input);
   }
   /** Edit a signed visit (DIG-97): saved as the next version; the signed note is kept. */
   amendVisit(visitId: string, input: VisitAmendmentInput): Promise<VisitDetail> {
@@ -109,6 +112,14 @@ export class ApiClient {
   /** The doctor's most-used diagnoses, shown first in the diagnosis picker (DIG-53). */
   diagnosisFavourites(): Promise<DiagnosisFavourite[]> {
     return this.request('GET', '/diagnoses/favourites');
+  }
+  /** Medicine catalogue and the doctor's order sets (DIG-69). Indicative, generic names only. */
+  medicines(): Promise<MedicineCatalogue> {
+    return this.request('GET', '/medicines');
+  }
+  /** The doctor's most-prescribed catalogue medicines (DIG-69). */
+  medicineFavourites(): Promise<MedicineFavourite[]> {
+    return this.request('GET', '/medicines/favourites');
   }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);
