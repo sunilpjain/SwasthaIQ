@@ -505,3 +505,72 @@ export interface MedicineFavourite {
   medicineId: string;
   uses: number;
 }
+
+// ---------------------------------------------------------------- consult note helpers
+// Field definitions and the summary builder, shared by the app (review, print-copy editor) and
+// the API (A4 PDF, DIG-72), so both lay out the same DIG-29 sections from the same note.
+export * from './note/time';
+export * from './note/fields';
+export * from './note/consult-fields';
+export * from './note/eye-fields';
+export * from './note/gastro-fields';
+export * from './note/rx-lines';
+export * from './note/rx-checks';
+export * from './note/summary';
+
+// ---------------------------------------------------------------- A4 summary (DIG-72/73)
+
+/** One Rx line on the A4: drug column and patient-instruction column (DIG-29 page 2). */
+export interface SummaryMedicine {
+  /** The Rx line id. */
+  id: string;
+  /** "Pantoprazole 40 mg · Tablet · OU". */
+  drug: string;
+  /** "1 · 1-0-0-0 · oral · before food · 14 days · Qty 14 · 28 Nov → 11 Dec 2026". */
+  instruction: string;
+  taper: string | null;
+  /** The Gujarati / Hindi / Marathi line, if any. */
+  local: string | null;
+  localLanguage: 'mr' | 'hi' | 'gu' | null;
+}
+
+export interface SummarySection {
+  /** Stable id from the title, e.g. "advice". The print-copy editor replaces lines by id. */
+  id: string;
+  title: string;
+  lines: string[];
+  /** Only on the "medication-order" section. */
+  medicines?: SummaryMedicine[];
+}
+
+/**
+ * The consultation summary with the prescription, as laid out on the A4 (DIG-29). Built by the
+ * API from the latest version of the visit; GET /visits/:id/summary.
+ */
+export interface SummaryDocument {
+  visitId: string;
+  version: number;
+  status: VisitStatus;
+  clinic: string;
+  doctor: {
+    name: string;
+    qualifications: string | null;
+    specialty: Specialty | null;
+    /** "Reg. No. 00000 (sample — not a real registration number)". */
+    registration: string;
+  };
+  patient: { name: string; ageSex: string; date: string };
+  sections: SummarySection[];
+  /** ISO time of signing (or of the latest edit); null for a draft. */
+  signedAt: string | null;
+}
+
+/**
+ * Body of POST /visits/:id/print-copy (DIG-73): reworded text for this printout only. Never
+ * written back to the visit; the PDF footer says "print copy edited".
+ */
+export interface PrintCopyInput {
+  version: number;
+  sections: { id: string; lines: string[] }[];
+  medicines?: { id: string; instruction: string; local: string | null }[];
+}

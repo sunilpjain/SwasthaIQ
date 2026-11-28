@@ -20,7 +20,7 @@ import {
   VISION_ROWS,
   type Side,
   type TableRow,
-} from './eye-fields';
+} from '@swasthyaiq/shared';
 import FieldBox from './FieldBox';
 
 /** Cards for Dr. Samradnyee's eye consult (DIG-52, hi-fi screen 4b). OD and OS side by side. */

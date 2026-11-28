@@ -1,4 +1,12 @@
-import { addEyeTag, EXAM_ROWS, eyeKey, eyeLabel, iopWarning, NORMAL_EXAM, normalFillFor } from './eye-fields';
+import {
+  addEyeTag,
+  EXAM_ROWS,
+  eyeKey,
+  eyeLabel,
+  iopWarning,
+  NORMAL_EXAM,
+  normalFillFor,
+} from '@swasthyaiq/shared';
 
 describe('eye fields (DIG-52)', () => {
   it('stores per-eye values under the seed’s keys, never showing RE/LE', () => {

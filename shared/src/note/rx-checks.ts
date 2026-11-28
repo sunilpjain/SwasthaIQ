@@ -1,4 +1,4 @@
-import type { AllergyClass, Medicine, RxLineInput, RxOverride, RxWarningKind } from '@swasthyaiq/shared';
+import type { AllergyClass, Medicine, RxLineInput, RxOverride, RxWarningKind } from '../index';
 
 /**
  * Advisory prescription checks (DIG-71). Deterministic rules with test tables, never AI.

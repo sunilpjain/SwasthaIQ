@@ -30,17 +30,17 @@ import {
   toggleInvestigation,
   VITALS,
   vitalWarning,
-} from '../../consult/consult-fields';
+} from '@swasthyaiq/shared';
 import { isSameDayEdit } from '../../consult/amend';
 import { forgetDraft, getDraft, keepDraft } from '../../consult/draft-registry';
-import { buildReview, signErrorCode } from '../../consult/review';
+import { buildReview, signErrorCode } from '@swasthyaiq/shared';
 import { ReviewBody, SignedBody, type SignState } from '../../consult/ReviewBody';
 import { DraftStore, saveStatusLine, type DraftState } from '../../consult/draft-store';
 import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
 import { suggestDiagnoses } from '../../consult/icd10/suggestions';
 import PhraseChips from '../../consult/PhraseChips';
-import { allergyEntries, checkRx, overridesFor } from '../../consult/rx/rx-checks';
+import { allergyEntries, checkRx, overridesFor } from '@swasthyaiq/shared';
 import RxSection, { cachedMedicines } from '../../consult/rx/RxSection';
 import { doctorLabel } from '../../patient/summary-view';
 import {
@@ -53,7 +53,7 @@ import {
   PROCEDURE_CHIPS,
 } from '../../consult/pick-lists';
 import { GastroExamCard, GastroPlanChips } from '../../consult/GastroSections';
-import { addEyeTag } from '../../consult/eye-fields';
+import { addEyeTag } from '@swasthyaiq/shared';
 import {
   DilatationCard,
   ExamCard,
@@ -378,6 +378,16 @@ export default function ConsultScreen() {
   }
 
   const visitId = d.state.visitId;
+
+  /** DIG-73: save what is typed, then show the draft's A4. */
+  async function previewA4() {
+    await d.flush();
+    if (d.state.unsaved > 0) {
+      Alert.alert('Not saved yet', 'The preview needs the note saved. Try again when you are online.');
+      return;
+    }
+    router.push({ pathname: '/summary', params: { visitId } });
+  }
   const editAgain = () => {
     if (edit === visitId) {
       setMode('edit');
@@ -441,12 +451,14 @@ export default function ConsultScreen() {
             setMode('edit');
           }}
           onSign={() => void signNow()}
+          onPreview={() => void previewA4()}
         />
       ) : mode === 'signed' ? (
         <SignedBody
           signedAt={signedAt}
           version={savedVersion}
           onEditNote={editAgain}
+          onSummary={() => router.push({ pathname: '/summary', params: { visitId } })}
           onQueue={() => router.navigate('/')}
           onPatient={() => router.navigate({ pathname: '/patient', params: { id: p.id } })}
         />

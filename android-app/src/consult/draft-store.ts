@@ -8,7 +8,7 @@ import type {
   VisitDraftInput,
 } from '@swasthyaiq/shared';
 import { ApiError } from '../api/client';
-import { splitKey } from './consult-fields';
+import { splitKey } from '@swasthyaiq/shared';
 
 /**
  * One consult draft on the phone (DIG-50). Edits autosave shortly after typing stops: only the

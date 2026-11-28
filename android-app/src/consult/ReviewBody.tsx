@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, MIN_TAP, radius, spacing, type } from '../theme/tokens';
 import { SourceBadge } from './FieldBox';
-import type { Review } from './review';
+import type { Review } from '@swasthyaiq/shared';
 
 export type SignState =
   | { status: 'idle' }
@@ -11,18 +11,21 @@ export type SignState =
 
 /**
  * Review before signing (DIG-95): the note in the DIG-29 order, what blocks signing and what is
- * only a warning. The A4 PDF with the prescription comes with DIG-73.
+ * only a warning. "Preview A4" shows the consultation summary PDF before signing (DIG-73).
  */
 export function ReviewBody({
   review,
   sign,
   onEdit,
   onSign,
+  onPreview,
 }: {
   review: Review;
   sign: SignState;
   onEdit: () => void;
   onSign: () => void;
+  /** DIG-73: the A4 PDF of the draft. */
+  onPreview?: () => void;
 }) {
   const blocking = sign.status === 'blocked' ? sign.problems : review.blocking;
   const canSign = blocking.length === 0 && sign.status !== 'signing';
@@ -84,9 +87,11 @@ export function ReviewBody({
               ))}
             </View>
           ))}
-          <Text style={styles.note}>
-            The A4 summary with the prescription, print and share arrive with DIG-73.
-          </Text>
+          {onPreview ? (
+            <Pressable style={styles.outline} onPress={onPreview} accessibilityRole="button">
+              <Text style={styles.outlineText}>Preview A4</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
       <View style={styles.actions}>
@@ -123,6 +128,7 @@ export function SignedBody({
   onQueue,
   onPatient,
   onEditNote,
+  onSummary,
 }: {
   /** Time of the sign, or of the edit for version 2 and later. */
   signedAt: string;
@@ -131,6 +137,8 @@ export function SignedBody({
   onPatient: () => void;
   /** DIG-97: reopen the note; the change is saved as the next version. */
   onEditNote?: () => void;
+  /** DIG-73: the A4 summary of this version. */
+  onSummary?: () => void;
 }) {
   const edited = version > 1;
   return (
@@ -159,7 +167,11 @@ export function SignedBody({
           <Text style={styles.outlineText}>Edit note</Text>
         </Pressable>
       ) : null}
-      <Text style={styles.note}>The A4 PDF, print and share arrive with DIG-73.</Text>
+      {onSummary ? (
+        <Pressable style={styles.primary} onPress={onSummary} accessibilityRole="button">
+          <Text style={styles.primaryText}>View, share or print the A4</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }

@@ -7,17 +7,13 @@ import type {
   RxLine,
   VisitSummary,
 } from '@swasthyaiq/shared';
-import { eyeLabel } from '../consult/eye-fields';
+import { eyeLabel } from '@swasthyaiq/shared';
 
 /** Pure helpers for the patient summary (DIG-48). Dates are ISO (YYYY-MM-DD), shown as "14 Aug". */
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "2026-08-14" → "14 Aug"; with year → "14 Aug 2026". */
-export function shortDate(iso: string, withYear = false): string {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number) as [number, number, number];
-  return `${d} ${MONTHS[m - 1]}${withYear ? ` ${y}` : ''}`;
-}
+/** "2026-08-14" → "14 Aug"; with year → "14 Aug 2026" (shared with the A4 summary). */
+import { shortDate } from '@swasthyaiq/shared';
+export { shortDate };
 
 /** Only the last 4 digits are shown on screen: "Phone ••••0001". */
 export function maskPhone(phone: string | null): string | null {

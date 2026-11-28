@@ -1,5 +1,5 @@
-import type { InvestigationOrder, Specialty } from '@swasthyaiq/shared';
-import { IST_OFFSET_MS } from '../queue/queue-view';
+import type { InvestigationOrder, Specialty } from '../index';
+import { IST_OFFSET_MS } from './time';
 
 /**
  * Consult note fields (DIG-50). Each field is one consult_fields row, "section.key".

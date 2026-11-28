@@ -5,7 +5,8 @@ import type { QueueEntry, QueueStatus } from '@swasthyaiq/shared';
  * The clinic is in Surat, so times are shown in IST whatever the phone's time zone is.
  */
 
-export const IST_OFFSET_MS = 330 * 60 * 1000;
+import { IST_OFFSET_MS } from '@swasthyaiq/shared';
+export { IST_OFFSET_MS };
 
 /** "9:30 am" / "12:15 pm" in IST from an ISO timestamp (12-hour, as the clinic says it). */
 export function istTime(iso: string): string {

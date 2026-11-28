@@ -7,6 +7,8 @@ import { CognitoAdmin } from '../src/auth/cognito-admin';
 import { CognitoTokenVerifier } from '../src/auth/token-verifier';
 import { createDb, type Db } from '../src/db/database';
 import { migrate } from '../src/db/migrate';
+import { MemoryFileStore } from '../src/files/file-store';
+import { InlineJobQueue } from '../src/jobs/job-queue';
 import { seed } from '../src/seed/seed';
 
 export const TEST_DB_URL =
@@ -87,6 +89,8 @@ export interface TestApp {
   db: Db;
   keys: Keys;
   cognito: FakeCognitoAdmin;
+  files: MemoryFileStore;
+  jobs: InlineJobQueue;
   tokenFor: (username: string, extra?: Partial<TokenOpts>) => Promise<string>;
 }
 
@@ -94,13 +98,25 @@ export async function startApp(statusTtlMs = 0): Promise<TestApp> {
   const db = await freshDb();
   const keys = await makeKeys();
   const cognito = new FakeCognitoAdmin();
+  const files = new MemoryFileStore();
+  const jobs = new InlineJobQueue();
   const app = await createApp({
     db,
     verifier: localVerifier(keys),
     cognitoAdmin: cognito,
     version: 'test',
     statusTtlMs,
+    files,
+    jobs,
   });
   await app.init();
-  return { app, db, keys, cognito, tokenFor: (username, extra) => token(keys, { username, ...extra }) };
+  return {
+    app,
+    db,
+    keys,
+    cognito,
+    files,
+    jobs,
+    tokenFor: (username, extra) => token(keys, { username, ...extra }),
+  };
 }

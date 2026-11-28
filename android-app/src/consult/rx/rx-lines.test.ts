@@ -12,7 +12,7 @@ import {
   localInstruction,
   quantity,
   searchMedicines,
-} from './rx-lines';
+} from '@swasthyaiq/shared';
 
 const med = (o: Partial<Medicine>): Medicine => ({
   id: 'pantoprazole-40-tab',

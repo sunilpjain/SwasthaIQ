@@ -1,5 +1,5 @@
 import type { DraftField } from './draft-store';
-import { buildReview, diagnosisLine, signErrorCode } from './review';
+import { buildReview, diagnosisLine, signErrorCode } from '@swasthyaiq/shared';
 
 const typed = (value: string): DraftField => ({ value, source: 'typed', confirmed: true, updatedAt: 'x' });
 const now = new Date('2026-11-25T05:00:00Z');
@@ -129,7 +129,7 @@ describe('review before signing (DIG-95)', () => {
     const r = buildReview({
       specialty: 'gastro',
       fields: {
-        'complaint.chief_complaint': { value: 'Pain', source: 'dictated', confirmed: false, updatedAt: 'x' },
+        'complaint.chief_complaint': { value: 'Pain', source: 'dictated', confirmed: false },
         'vitals.pulse': typed('820'),
       },
       diagnoses: [],

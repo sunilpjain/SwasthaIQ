@@ -28,6 +28,9 @@ import type { AuthUser } from '../auth/auth.decorators';
 import { notYourPatient } from '../clinic/clinic.service';
 import { IST_OFFSET_MS } from '../clinic/queue-schedule';
 import { DB, type Db } from '../db/database';
+import type { JobQueue } from '../jobs/job-queue';
+import { JOBS } from '../jobs/tokens';
+import { logger } from '../logging/logger';
 import type { Database } from '../db/schema';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,7 +98,25 @@ const signedConflict = () =>
 
 @Injectable()
 export class VisitsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(JOBS) private readonly jobs: JobQueue,
+  ) {}
+
+  /**
+   * DIG-72: after a sign or an edit, queue the A4 summary of that version. A failed send is
+   * logged, not fatal: the PDF is rendered on first request instead.
+   */
+  private async withSummaryJob(v: VisitDetail): Promise<VisitDetail> {
+    if (v.status === 'signed') {
+      await this.jobs
+        .send({ type: 'render-summary', visitId: v.id, version: v.version })
+        .catch((err: unknown) =>
+          logger.warn({ visitId: v.id, err: (err as Error).message }, 'summary job not queued'),
+        );
+    }
+    return v;
+  }
 
   /**
    * Creates or updates the doctor's draft. Idempotent: the app picks the visit id, and every
@@ -344,7 +365,7 @@ export class VisitsService {
         .where('patient_id', '=', v.patient_id)
         .execute();
     });
-    return this.detail(visitId);
+    return this.withSummaryJob(await this.detail(visitId));
   }
 
   /**
@@ -412,7 +433,7 @@ export class VisitsService {
         .execute();
       await this.logOverrides(trx, user, visitId, input.overrides);
     });
-    return this.detail(visitId);
+    return this.withSummaryJob(await this.detail(visitId));
   }
 
   /**

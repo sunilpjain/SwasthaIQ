@@ -1,4 +1,4 @@
-import { appendPhrase } from './consult-fields';
+import { appendPhrase } from '@swasthyaiq/shared';
 import {
   ALLERGY_CHIPS,
   appendDuration,

@@ -1,7 +1,7 @@
 import type { Diagnosis, EyeSide, PatientCondition, Specialty, VisitSummary } from '@swasthyaiq/shared';
 import { shortDate } from '../../patient/summary-view';
 import type { DraftField } from '../draft-store';
-import { eyeKey } from '../eye-fields';
+import { eyeKey } from '@swasthyaiq/shared';
 import { findCode } from './search';
 
 /**
