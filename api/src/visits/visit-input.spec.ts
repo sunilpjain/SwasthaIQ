@@ -1,5 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
-import { LIMITS, parseAmendment, parseDiagnoses, parseDraft, parseInvestigations } from './visit-input';
+import {
+  LIMITS,
+  parseAmendment,
+  parseDiagnoses,
+  parseDraft,
+  parseInvestigations,
+  parseRxLines,
+} from './visit-input';
 import { clampToNow, isSameDayEdit, istToday } from './visits.service';
 
 const PATIENT = '11111111-1111-4111-8111-111111111111';
@@ -232,6 +239,60 @@ describe('parseInvestigations (DIG-50)', () => {
         investigationsClientUpdatedAt: AT,
       }).investigations,
     ).toEqual([{ testName: 'CBC', testCode: 'HB' }]);
+  });
+});
+
+describe('parseRxLines (DIG-70)', () => {
+  const ID = '33333333-3333-4333-8333-333333333333';
+  const line = (o: Record<string, unknown> = {}) => ({
+    id: ID,
+    medicineId: 'moxifloxacin-05-drops',
+    route: 'eye',
+    medicineGeneric: ' moxifloxacin 0.5% ',
+    form: 'Eye drops',
+    eye: null,
+    dose: '1 drop',
+    frequency: '1-1-1-1',
+    timing: '',
+    duration: '1 week',
+    ...o,
+  });
+
+  it('trims, fills the optional parts and allows a draft line without the eye', () => {
+    expect(parseRxLines([line()], 'rxLines')).toEqual([
+      {
+        id: ID,
+        medicineId: 'moxifloxacin-05-drops',
+        route: 'eye',
+        medicineGeneric: 'moxifloxacin 0.5%',
+        form: 'Eye drops',
+        eye: null,
+        dose: '1 drop',
+        frequency: '1-1-1-1',
+        timing: null,
+        duration: '1 week',
+        taper: null,
+        instructionsEn: null,
+        instructionsLocal: null,
+        instructionsLanguage: null,
+      },
+    ]);
+  });
+
+  it.each<[string, unknown, RegExp]>([
+    ['bad id', [line({ id: 'x' })], /rxLines\[0\]\.id must be a UUID/],
+    ['bad catalogue id', [line({ medicineId: 'Not An Id' })], /medicineId must be a catalogue id/],
+    ['eye as OD', [line({ eye: 'OD' })], /eye must be one of RE, LE, BE/],
+    [
+      'english local line',
+      [line({ instructionsLocal: 'x', instructionsLanguage: 'en' })],
+      /must be mr, hi or gu/,
+    ],
+    ['local line without language', [line({ instructionsLocal: 'x' })], /is needed with instructionsLocal/],
+    ['repeated id', [line(), line()], /more than once/],
+    ['no medicine', [line({ medicineGeneric: ' ' })], /medicineGeneric must not be empty/],
+  ])('refuses %s', (_name, body, re) => {
+    expect(() => parseRxLines(body, 'rxLines')).toThrow(re);
   });
 });
 

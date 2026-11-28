@@ -216,6 +216,30 @@ describe('DraftStore', () => {
     expect(t.store.state.diagnoses[0]?.label).toBe('Post-op review');
   });
 
+  it('saves the prescription whole with its own timestamp (DIG-70)', async () => {
+    const t = setup();
+    const line = {
+      id: 'l1',
+      medicineId: null,
+      route: 'oral' as const,
+      medicineGeneric: 'paracetamol 650 mg',
+      form: 'Tablet',
+      eye: null,
+      dose: '1',
+      frequency: 'SOS',
+      timing: null,
+      duration: '3 days',
+      taper: null,
+      instructionsEn: null,
+      instructionsLocal: null,
+      instructionsLanguage: null,
+    };
+    t.store.setRxLines([line]);
+    await t.timers.advance(SAVE_DEBOUNCE_MS);
+    expect(t.calls[0]?.input).toMatchObject({ rxLines: [line], rxClientUpdatedAt: expect.any(String) });
+    expect(t.store.state.unsaved).toBe(0);
+  });
+
   it('describes the save state', () => {
     const t = setup();
     expect(saveStatusLine(t.store.state, () => '')).toBe('Changes save automatically');

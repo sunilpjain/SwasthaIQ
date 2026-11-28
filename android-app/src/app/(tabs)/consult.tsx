@@ -40,6 +40,7 @@ import Chip from '../../consult/Chip';
 import DiagnosisSection from '../../consult/DiagnosisSection';
 import { suggestDiagnoses } from '../../consult/icd10/suggestions';
 import PhraseChips from '../../consult/PhraseChips';
+import RxSection from '../../consult/rx/RxSection';
 import {
   ALLERGY_CHIPS,
   appendDuration,
@@ -408,6 +409,7 @@ export default function ConsultScreen() {
             fields: state.fields,
             diagnoses: state.diagnoses,
             investigations: state.investigations,
+            rxLines: state.rxLines,
             followUp: state.followUp,
             knownAllergies: p.allergies,
             now,
@@ -587,6 +589,20 @@ export default function ConsultScreen() {
             </Card>
 
             {eye ? <SurgeryCard d={d} readOnly={readOnly} /> : null}
+
+            <Card title="Medication order">
+              <RxSection
+                lines={state.rxLines}
+                onChange={(list) => d.setRxLines(list)}
+                lastRx={
+                  load.patient.currentMedicines.find(
+                    (r) => r.doctorId === me.id && r.visitId !== state.visitId,
+                  )?.lines ?? []
+                }
+                visitDate={editing?.visitDate ?? followUpDate(0, now)}
+                readOnly={readOnly}
+              />
+            </Card>
 
             <Card title="Plan">
               <Text style={styles.chipLabel}>Investigations</Text>

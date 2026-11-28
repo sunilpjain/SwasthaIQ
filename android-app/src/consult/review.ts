@@ -1,9 +1,16 @@
-import type { CaptureSource, Diagnosis, InvestigationOrder, Specialty } from '@swasthyaiq/shared';
+import type {
+  CaptureSource,
+  Diagnosis,
+  InvestigationOrder,
+  RxLineInput,
+  Specialty,
+} from '@swasthyaiq/shared';
 import { shortDate } from '../patient/summary-view';
 import { FIELD, followUpLabel, VITALS, vitalWarning } from './consult-fields';
 import type { DraftField } from './draft-store';
 import { EXAM_ROWS, EYE_FIELD, eyeKey, iopWarning, VISION_ROWS } from './eye-fields';
 import { GASTRO_FIELD } from './gastro-fields';
+import { lineSig, lineTitle } from './rx/rx-lines';
 
 /**
  * The on-phone review before signing (DIG-95), in the DIG-29 summary order. Built from the draft
@@ -26,6 +33,8 @@ export interface ReviewInput {
   fields: Record<string, DraftField>;
   diagnoses: Diagnosis[];
   investigations: InvestigationOrder[];
+  /** The prescription (DIG-70). */
+  rxLines?: RxLineInput[];
   followUp: string | null;
   knownAllergies: string[];
   now: Date;
@@ -159,6 +168,10 @@ export function buildReview(input: ReviewInput): Review {
   add(
     'Investigation order',
     input.investigations.map((t) => ({ text: t.testName })),
+  );
+  add(
+    'Medication order',
+    (input.rxLines ?? []).map((l) => ({ text: `${lineTitle(l)} — ${lineSig(l)}` })),
   );
   add(eye ? 'Action plan' : 'Plan', lines(line(f, GASTRO_FIELD.planType), line(f, FIELD.plan)));
   add('Advice', lines(line(f, FIELD.advice)));

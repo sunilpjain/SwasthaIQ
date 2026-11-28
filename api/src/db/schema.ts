@@ -98,6 +98,7 @@ export interface VisitsTable {
     Date | string | null | undefined,
     Date | string | null
   >;
+  rx_client_updated_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
   investigations_client_updated_at: ColumnType<
     Date | null,
     Date | string | null | undefined,
@@ -155,7 +156,9 @@ export interface RxLinesTable {
   id: Generated<string>;
   prescription_id: string;
   position: number;
-  medicine_brand: string;
+  medicine_brand: string | null;
+  medicine_id: string | null;
+  route: 'oral' | 'eye' | null;
   medicine_generic: string;
   form: string;
   eye: 'RE' | 'LE' | 'BE' | null;

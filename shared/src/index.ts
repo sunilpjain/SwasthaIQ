@@ -91,7 +91,13 @@ export interface ConsultField {
 
 export interface RxLine {
   id: string;
-  medicineBrand: string;
+  /** Seed data only; new lines are generic-only (decision 20 Nov). */
+  medicineBrand: string | null;
+  /** Catalogue item the line came from (DIG-69), or null when typed freely. */
+  medicineId: string | null;
+  /** "eye" lines need OD / OS / OU (RE / LE / BE on the wire) before signing (DIG-71). */
+  route: 'oral' | 'eye' | null;
+  /** Generic and strength, e.g. "pantoprazole 40 mg". */
   medicineGeneric: string;
   form: string;
   eye: Eye | null;
@@ -213,6 +219,9 @@ export interface ConsultFieldInput {
   clientUpdatedAt: string;
 }
 
+/** An Rx line as sent by the app (DIG-70). `id` is picked by the app (a UUID). */
+export type RxLineInput = Omit<RxLine, 'medicineBrand'>;
+
 /**
  * Body of PUT /visits/:id (draft save). The app picks the visit id (a UUID) itself, so a save
  * queued offline and retried is idempotent: the first call creates the draft, later calls update it.
@@ -227,6 +236,9 @@ export interface VisitDraftInput {
   /** Tests ordered at this visit (DIG-50). Replaces the whole list, same rule as diagnoses. */
   investigations?: InvestigationOrder[];
   investigationsClientUpdatedAt?: string;
+  /** The prescription (DIG-70). Replaces the whole list, same rule as diagnoses. */
+  rxLines?: RxLineInput[];
+  rxClientUpdatedAt?: string;
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
@@ -242,6 +254,8 @@ export interface VisitAmendmentInput {
   fields?: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses?: Diagnosis[];
   investigations?: InvestigationOrder[];
+  /** The whole prescription after the edit (DIG-70). */
+  rxLines?: RxLineInput[];
   /** ISO date, or null to clear. */
   followUp?: string | null;
 }
@@ -256,6 +270,7 @@ export interface VisitAmendment {
   fields: Omit<ConsultFieldInput, 'clientUpdatedAt'>[];
   diagnoses: Diagnosis[] | null;
   investigations: InvestigationOrder[] | null;
+  rxLines: RxLineInput[] | null;
   /** Absent when the follow-up was not changed. */
   followUp?: string | null;
   createdAt: string;
