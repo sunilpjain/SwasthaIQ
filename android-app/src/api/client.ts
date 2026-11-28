@@ -11,6 +11,8 @@ import type {
   QueueEntry,
   UserSummary,
   VisitDetail,
+  MedicineCatalogue,
+  MedicineFavourite,
   VisitAmendmentInput,
   VisitDraftInput,
 } from '@swasthyaiq/shared';
@@ -109,6 +111,14 @@ export class ApiClient {
   /** The doctor's most-used diagnoses, shown first in the diagnosis picker (DIG-53). */
   diagnosisFavourites(): Promise<DiagnosisFavourite[]> {
     return this.request('GET', '/diagnoses/favourites');
+  }
+  /** Medicine catalogue and the doctor's order sets (DIG-69). Indicative, generic names only. */
+  medicines(): Promise<MedicineCatalogue> {
+    return this.request('GET', '/medicines');
+  }
+  /** The doctor's most-prescribed catalogue medicines (DIG-69). */
+  medicineFavourites(): Promise<MedicineFavourite[]> {
+    return this.request('GET', '/medicines/favourites');
   }
   visit(id: string): Promise<VisitDetail> {
     return this.request('GET', `/visits/${encodeURIComponent(id)}`);
